@@ -15,9 +15,16 @@ static const char *TAG = "ulp_blink.component";
 void ULP_BLINK_RUN(uint32_t us);
 
 void ULPBlink::setup() {
+
+    if (pin_ != nullptr) {
+        pin_->setup();
+        pin_->pin_mode(gpio::FLAG_OUTPUT);
+        pin_->digital_write(false);  // start OFF
+    }
+
     // microseconds to delay between halt and wake states
     ESP_LOGD("custom", "begin custom ulp component setup");
-    ULP_BLINK_RUN(1000000); //1 sec
+    ULP_BLINK_RUN(interval_ * 1000); // interval_ is in ms
 }
 
 void ULPBlink::loop() {
