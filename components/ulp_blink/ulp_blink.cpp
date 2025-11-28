@@ -22,7 +22,6 @@ void ULPBlink::setup() {
     gpio_num_t gpio = (gpio_num_t) pin_->get_pin();
     int rtc_num = rtc_io_number_get(gpio);            
     if (rtc_num < 0) {
-        // ESP_LOGE(TAG, "Pin %d is not RTC-capable", gpio);
         mark_failed("Specified pin is not RTC-capable");
         return;
     }
