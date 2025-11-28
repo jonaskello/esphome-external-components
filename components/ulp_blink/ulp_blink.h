@@ -12,14 +12,15 @@ class ULPBlink : public Component {
         void loop() override;
         void dump_config() override;
 
-        void set_pin(GPIOPin *pin) { pin_ = pin; }
+        void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
         void set_interval(uint32_t interval) { interval_ = interval; }
 
     protected:
-        GPIOPin *pin_{nullptr};
+        InternalGPIOPin *pin_{nullptr};
         uint32_t interval_{1000};   // default 1s
         uint32_t last_toggle_{0};
         bool state_{false};
+        int rtc_bit_{-1};   // store computed bit here
 };
 
 }  // namespace ulp_blink
