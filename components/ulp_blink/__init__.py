@@ -9,7 +9,7 @@ ULPBlink = ulp_blink_ns.class_("ULPBlink", cg.Component)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ULPBlink),
-        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional("interval", default="1s"): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
