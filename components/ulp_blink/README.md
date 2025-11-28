@@ -1,5 +1,14 @@
 # example configuration:
 
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # NOTE: Without this option it will not compile
+      CONFIG_ULP_COPROC_ENABLED: "y"
+
+
 external_components:
   - source: github://jonaskello/esphome-external-components@main
     components: [ ulp_blink ]
