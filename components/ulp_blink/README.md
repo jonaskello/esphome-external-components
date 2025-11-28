@@ -1,5 +1,6 @@
 # example configuration:
 
+```yaml
 esp32:
   board: esp32dev
   framework:
@@ -22,3 +23,4 @@ ulp_blink:
 deep_sleep:
   run_duration: 10s
   sleep_duration: 10s
+```
