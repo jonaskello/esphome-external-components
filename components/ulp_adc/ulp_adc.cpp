@@ -13,18 +13,19 @@ static const char *TAG = "ulp_adc.component";
 void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
 
     const ulp_insn_t ulp_adc_prog[] = {
-        I_MOVI(R3, 12),              // R3 -> RTC_SLOW_MEM[12] (baseline)
+        I_MOVI(R3, 12),              // R3 -> RTC_SLOW_MEM[12] (baseline slot)
         I_ADC(R0, adc_channel, 0),   // R0 = ADC(current)
         I_LD(R1, R3, 0),             // R1 = baseline
-        I_SUBR(R2, R0, R1),          // R2 = R0 - R1
-        I_MOVI(R4, 13),              // R4 -> RTC_SLOW_MEM[13] (threshold)
-        I_LD(R5, R4, 0),             // R5 = threshold
-        I_SUBR(R6, R2, R5),          // R6 = (difference - threshold); >= 0 means threshold crossed
-        M_BGE(1, 0),                 // if R6 >= 0, goto label 1 (wake)
-        M_BX(2),                     // otherwise, skip wake and continue
+        I_SUBR(R2, R0, R1),          // R2 = difference = current - baseline
+        I_MOVI(R3, 13),              // reuse R3 -> RTC_SLOW_MEM[13] (threshold slot)
+        I_LD(R1, R3, 0),             // R1 = threshold (overwrites baseline)
+        I_SUBR(R2, R2, R1),          // R2 = difference - threshold
+        M_BGE(1, 0),                 // if R2 >= 0, goto label 1 (wake)
+        M_BX(2),                     // otherwise, skip wake
         M_LABEL(1),
-            I_WAKE(),                    // wake main CPU
-            I_ST(R0, R3, 0),             // baseline = current
+          I_WAKE(),                  // wake main CPU
+          I_MOVI(R3, 12),            // reload baseline slot address
+          I_ST(R0, R3, 0),           // baseline = current
         M_LABEL(2),
         I_HALT()
     };
