@@ -2,6 +2,12 @@
 
 #include "adc_ulp.h"
 #include "esphome/core/log.h"
+#include "esp32/ulp.h"
+#include "driver/rtc_io.h"
+#include "esphome.h"
+#include "esphome/core/gpio.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_sleep.h"
 
 namespace esphome {
 namespace adc_ulp {
@@ -21,6 +27,35 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
         default:
             return LOG_STR("Unknown Attenuation");
     }
+}
+
+void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
+
+    const ulp_insn_t ulp_adc_prog[] = {
+        I_MOVI(R3, 12),              // R3 -> RTC_SLOW_MEM[12] (baseline slot)
+        I_ADC(R0, adc_channel, 0),   // R0 = ADC(current)
+        I_LD(R1, R3, 0),             // R1 = baseline
+        I_SUBR(R2, R0, R1),          // R2 = difference = current - baseline
+        I_MOVI(R3, 13),              // reuse R3 -> RTC_SLOW_MEM[13] (threshold slot)
+        I_LD(R1, R3, 0),             // R1 = threshold (overwrites baseline)
+        I_SUBR(R2, R2, R1),          // R2 = difference - threshold
+        M_BGE(1, 0),                 // if R2 >= 0, goto label 1 (wake)
+        M_BX(2),                     // otherwise, skip wake
+        M_LABEL(1),
+          I_WAKE(),                  // wake main CPU
+          I_MOVI(R3, 12),            // reload baseline slot address
+          I_ST(R0, R3, 0),           // baseline = current
+        M_LABEL(2),
+        I_HALT()
+    };
+
+    // Microseconds to delay between halt and wake states
+    ulp_set_wakeup_period(0, us);
+
+    // Load and start ULP program
+    size_t size = sizeof(ulp_adc_prog) / sizeof(ulp_insn_t);
+    ulp_process_macros_and_load(0, ulp_adc_prog, &size);
+    ulp_run(0);
 }
 
 void ADCULPSensor::setup() {
