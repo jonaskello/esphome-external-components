@@ -68,11 +68,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
             this->channel_ = channel;
         }
 
-        /// Set whether autoranging should be enabled for the ADC.
-        /// Autoranging automatically adjusts the attenuation level to handle a wide range of input voltages.
-        /// @param autorange Boolean indicating whether to enable autoranging.
-        void set_autorange(bool autorange) { this->autorange_ = autorange; }
-
         /// The interval that the ULP will read ADC
         void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
@@ -80,9 +75,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         bool output_raw_{false};
         InternalGPIOPin *pin_;
 
-        float sample_autorange_();
-        float sample_fixed_attenuation_();
-        bool autorange_{false};
         uint32_t update_interval_ms_{1000};  // default 1s
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};

@@ -57,7 +57,7 @@ void ADCULPSensor::dump_config() {
                 "  Unit:          %s\n"
                 "  Attenuation:   %s\n",
                 this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
+                LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
 
     // ESP_LOGCONFIG(
     //     TAG,
