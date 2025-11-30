@@ -33,7 +33,7 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
     }
 }
 
-void ulp_adc_run(uint32_t update_interval_ms, uint32_t adc_channel, uint16_t threshold) {
+void ulp_prog_run(uint32_t update_interval_ms, uint32_t adc_channel, uint16_t threshold) {
 
     const ulp_insn_t ulp_prog[] = {
         I_MOVI(R3, BASELINE_SLOT),   // R3 -> RTC_SLOW_MEM[BASELINE_SLOT]
@@ -108,7 +108,8 @@ void ADCULPSensor::setup() {
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
     // Run ULP
-    ulp_adc_run(update_interval_ms_, channel_, threshold_); 
+    ulp_prog_run(update_interval_ms_, channel_, threshold_); 
+    esp_sleep_enable_ulp_wakeup();
 
     this->setup_flags_.init_complete = true;
 }
@@ -126,17 +127,24 @@ void ADCULPSensor::loop() {
     //     publish_state(measured);   // publish to YAML sensor
     // }
 
-    uint32_t measured = RTC_SLOW_MEM[BASELINE_SLOT];
-    ESP_LOGI(TAG, "ULP measured ADC = %u", measured);
+    static bool published = false;
+    if (!published && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_ULP) {
+        uint32_t measured = RTC_SLOW_MEM[BASELINE_SLOT];
+        publish_state(measured);
+        published = true;
+    }
 
-    // Publish to YAML sensor
-    publish_state(measured);  
+    // uint32_t measured = RTC_SLOW_MEM[BASELINE_SLOT];
+    // ESP_LOGI(TAG, "ULP measured ADC = %u", measured);
 
-    // Light the LED as a simple test
-    gpio_set_level(GPIO_NUM_2, 1);  // ON
-    delay(1000);              // keep it on briefly
-    gpio_set_level(GPIO_NUM_2, 0);  // OFF
-    delay(1000);              // keep it on briefly
+    // // Publish to YAML sensor
+    // publish_state(measured);  
+
+    // // Light the LED as a simple test
+    // gpio_set_level(GPIO_NUM_2, 1);  // ON
+    // delay(1000);              // keep it on briefly
+    // gpio_set_level(GPIO_NUM_2, 0);  // OFF
+    // delay(1000);              // keep it on briefly
 }
 
 void ADCULPSensor::dump_config() {
