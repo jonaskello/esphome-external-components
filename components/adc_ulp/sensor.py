@@ -50,6 +50,8 @@ ADCULPSensor = adc_ulp_ns.class_(
     "ADCULPSensor", sensor.Sensor, cg.Component, voltage_sampler.VoltageSampler
 )
 
+CONF_UPDATE_INTERVAL = "update_interval"
+
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         ADCULPSensor,
@@ -65,9 +67,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
+            cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
         }
-    )
-    .extend(cv.polling_component_schema("60s")),
+    ),
     validate_config,
 )
 
@@ -78,8 +80,10 @@ async def to_code(config):
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
-
     cg.add(var.set_output_raw(config[CONF_RAW]))
+
+    if CONF_UPDATE_INTERVAL in config:
+        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
     if CORE.is_esp32:
         if attenuation := config.get(CONF_ATTENUATION):
