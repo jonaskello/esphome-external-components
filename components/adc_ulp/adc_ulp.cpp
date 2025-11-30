@@ -86,7 +86,13 @@ void ADCULPSensor::setup() {
 
     // Prime baseline with one CPU-side read
     int baseline = 0;
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, channel_, &baseline));
+    esp_err_t err_read = adc_oneshot_read(adc1_handle, channel_, &baseline);
+    if (err_read != ESP_OK) {
+        ESP_LOGE(TAG, "Error reading channel: %d", err_read);
+        this->mark_failed();
+        return;
+    }
+    this->setup_flags_.calibration_complete = true;
     ESP_LOGI(TAG, "Primed baseline with initial ADC value: %d", baseline);
 
     // Initial values for the ULP memory
@@ -100,6 +106,7 @@ void ADCULPSensor::setup() {
     // Run ULP
     ulp_adc_run(update_interval_ms_, channel_, threshold_); 
 
+    this->setup_flags_.init_complete = true;
 }
 
 void ADCULPSensor::dump_config() {
