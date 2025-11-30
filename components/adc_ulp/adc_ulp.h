@@ -59,14 +59,9 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// @param attenuation The desired ADC attenuation level (e.g., ADC_ATTEN_DB_0, ADC_ATTEN_DB_11).
         void set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
 
-        /// Configure the ADC to use a specific channel on a specific ADC unit.
-        /// This sets the channel for single-shot or continuous ADC measurements.
-        /// @param unit The ADC unit to use (ADC_UNIT_1 or ADC_UNIT_2).
+        /// Configure the ADC to use a specific channel. Only ADC1 unit is used for ULP so that is implicit.
         /// @param channel The ADC channel to configure, such as ADC_CHANNEL_0, ADC_CHANNEL_3, etc.
-        void set_channel(adc_unit_t unit, adc_channel_t channel) {
-            this->adc_unit_ = unit;
-            this->channel_ = channel;
-        }
+        void set_channel(adc_channel_t channel) { this->channel_ = channel; }
 
         /// The interval that the ULP will read ADC
         void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
@@ -78,7 +73,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         uint32_t update_interval_ms_{1000};  // default 1s
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
-        adc_unit_t adc_unit_{};
         struct SetupFlags {
             uint8_t init_complete : 1;
             uint8_t config_complete : 1;

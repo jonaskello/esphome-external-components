@@ -82,30 +82,22 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
     cg.add(var.set_output_raw(config[CONF_RAW]))
 
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    if update_interval := config.get(CONF_UPDATE_INTERVAL):
+        cg.add(var.set_update_interval(update_interval))
 
-    if CORE.is_esp32:
-        if attenuation := config.get(CONF_ATTENUATION):
-            if attenuation == "auto":
-                cg.add(var.set_autorange(cg.global_ns.true))
-            else:
-                cg.add(var.set_attenuation(attenuation))
+    if attenuation := config.get(CONF_ATTENUATION):
+        cg.add(var.set_attenuation(attenuation))
 
-        variant = get_esp32_variant()
-        pin_num = config[CONF_PIN][CONF_NUMBER]
-        if (
-            variant in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL
-            and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
-        ):
-            chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_1, chan))
-        elif (
-            variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
-            and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
-        ):
-            chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
-            cg.add(var.set_channel(adc_unit_t.ADC_UNIT_2, chan))
+    variant = get_esp32_variant()
+    pin_num = config[CONF_PIN][CONF_NUMBER]
+    if (
+        variant in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL
+        and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
+    ):
+        chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
+        cg.add(var.set_channel(chan))
+    else:
+        raise cv.Invalid(f"Pin {pin_num} is not supported by ULP ADC (ADC1 only)")
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {

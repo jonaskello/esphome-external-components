@@ -23,17 +23,6 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
     }
 }
 
-const LogString *adc_unit_to_str(adc_unit_t unit) {
-    switch (unit) {
-        case ADC_UNIT_1:
-            return LOG_STR("ADC1");
-        case ADC_UNIT_2:
-            return LOG_STR("ADC2");
-        default:
-            return LOG_STR("Unknown ADC Unit");
-    }
-}
-
 void ADCULPSensor::setup() {
     ESP_LOGCONFIG(TAG, "Initializing ULP ADC sensor");
 
@@ -50,14 +39,13 @@ void ADCULPSensor::setup() {
 }
 
 void ADCULPSensor::dump_config() {
-    LOG_SENSOR("", "ADC Sensor", this);
+    LOG_SENSOR("", "ADC ULP Sensor", this);
     LOG_PIN("  Pin: ", this->pin_);
     ESP_LOGCONFIG(TAG,
                 "  Channel:       %d\n"
-                "  Unit:          %s\n"
+                "  Unit:          ADC1\n"
                 "  Attenuation:   %s\n",
-                this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
+                this->channel_, LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
 
     // ESP_LOGCONFIG(
     //     TAG,
