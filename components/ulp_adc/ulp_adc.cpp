@@ -4,6 +4,8 @@
 #include "driver/rtc_io.h"
 #include "esphome.h"
 #include "esphome/core/gpio.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_sleep.h"
 
 namespace esphome {
 namespace ulp_adc {
@@ -74,7 +76,7 @@ switch (gpio) {
 void UlpAdc::setup() {
 
     // Stop any previously running ULP program
-    ulp_stop();
+    ulp_timer_stop();
 
     // Convert GPIO pin to ADC channel
     int gpio = pin_->get_pin();
@@ -85,16 +87,27 @@ void UlpAdc::setup() {
     }
 
     // Init ADC pin
-    adc1_config_width(ADC_WIDTH_BIT_12); // 12‑bit resolution
-    adc1_config_channel_atten((adc1_channel_t)adc_channel_, ADC_ATTEN_DB_11); // attenuation for voltage range
+    // adc1_config_width(ADC_WIDTH_BIT_12); // 12‑bit resolution
+    // adc1_config_channel_atten((adc1_channel_t)adc_channel_, ADC_ATTEN_DB_12); // 11 dB attenuation equivalent
+    // // --- New oneshot ADC setup ---
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_init_cfg_t init_cfg = { .unit_id = ADC_UNIT_1 };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg, &adc1_handle));
+    adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, (adc_channel_t)adc_channel_, &chan_cfg));
 
     // Prime baseline with one CPU-side read
-    int baseline = adc1_get_raw((adc1_channel_t)adc_channel_);
+    int baseline = 0;
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)adc_channel_, &baseline));
     ESP_LOGI(TAG, "Primed baseline with initial ADC value: %d", baseline);
 
     // Initial values for the ULP memory
     RTC_SLOW_MEM[12] = baseline;
     RTC_SLOW_MEM[13] = threshold_;
+
+    // Use internal led for testing
+    gpio_reset_pin(GPIO_NUM_2);
+    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
     // Run ULP
     uint32_t delay_us = static_cast<uint32_t>(interval_) * 1000; // interval_ is in milliseconds
@@ -107,9 +120,9 @@ void UlpAdc::loop() {
         ESP_LOGI(TAG, "ULP wake-up, measured ADC = %u", measured);
 
         // Light the LED as a simple test
-        digitalWrite(2, HIGH);
+        gpio_set_level(GPIO_NUM_2, 1);  // ON
         delay(100);              // keep it on briefly
-        digitalWrite(2, LOW);
+        gpio_set_level(GPIO_NUM_2, 0);  // OFF
 
         publish_state(measured);   // publish to YAML sensor
     }

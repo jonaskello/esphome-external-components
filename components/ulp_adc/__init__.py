@@ -2,11 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN, CONF_INTERVAL
 import esphome.pins as pins
+import esphome.components.sensor as sensor
 
 CONF_THRESHOLD = "threshold"
 
 ulp_adc_ns = cg.esphome_ns.namespace("ulp_adc")
-UlpAdc = ulp_adc_ns.class_("UlpAdc", cg.Component)
+UlpAdc = ulp_adc_ns.class_("UlpAdc", cg.Component, sensor.Sensor)
 
 CONFIG_SCHEMA = cv.Schema(
     {

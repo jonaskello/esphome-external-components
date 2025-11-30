@@ -1,12 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ulp_adc {
 
-class UlpAdc : public Component {
+class UlpAdc : public Component, public sensor::Sensor {
     public:
         void setup() override;
         void loop() override;
