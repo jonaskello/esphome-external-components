@@ -59,18 +59,51 @@ void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
 }
 
 void ADCULPSensor::setup() {
-    ESP_LOGCONFIG(TAG, "Initializing ULP ADC sensor");
 
-    // Configure ULP program here (load binary, set channel, threshold, etc.)
-    // Example placeholder:
-    bool ulp_init_success = false;
-    if (!ulp_init_success) {
-        ESP_LOGE(TAG, "ULP init failed");
-        this->mark_failed();
-        return;
-    }
+    // // Configure ULP program here (load binary, set channel, threshold, etc.)
+    // // Example placeholder:
+    // bool ulp_init_success = false;
+    // if (!ulp_init_success) {
+    //     ESP_LOGE(TAG, "ULP init failed");
+    //     this->mark_failed();
+    //     return;
+    // }
 
-    ESP_LOGCONFIG(TAG, "ULP ADC sensor init complete");
+    // Stop any previously running ULP program
+    ulp_timer_stop();
+
+    // // Convert GPIO pin to ADC channel
+    // int gpio = pin_->get_pin();
+    // adc_channel_ = gpio_to_adc_channel(gpio);            
+    // if (adc_channel_ < 0) {
+    //     mark_failed("Specified pin is not ADC1-capable, only ADC1 can be used by ULP");
+    //     return;
+    // }
+
+    // Init ADC pin
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_init_cfg_t init_cfg = { .unit_id = ADC_UNIT_1 };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg, &adc1_handle));
+    adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, channel_, &chan_cfg));
+
+    // Prime baseline with one CPU-side read
+    int baseline = 0;
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, channel_, &baseline));
+    ESP_LOGI(TAG, "Primed baseline with initial ADC value: %d", baseline);
+
+    // Initial values for the ULP memory
+    RTC_SLOW_MEM[12] = baseline;
+    RTC_SLOW_MEM[13] = threshold_;
+
+    // Use internal led for testing
+    gpio_reset_pin(GPIO_NUM_2);
+    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+
+    // Run ULP
+    uint32_t delay_us = static_cast<uint32_t>(interval_) * 1000; // interval_ is in milliseconds
+    ulp_adc_run(delay_us, adc_channel_, threshold_); 
+
 }
 
 void ADCULPSensor::dump_config() {

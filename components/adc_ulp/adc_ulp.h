@@ -71,6 +71,7 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         InternalGPIOPin *pin_;
 
         uint32_t update_interval_ms_{1000};  // default 1s
+        uint16_t threshold_{100};  // ADC difference threshold for wake-up
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
         struct SetupFlags {

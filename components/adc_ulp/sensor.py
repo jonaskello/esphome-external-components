@@ -32,6 +32,9 @@ AUTO_LOAD = ["voltage_sampler"]
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 
+CONF_THRESHOLD = "threshold"
+CONF_UPDATE_INTERVAL = "update_interval"
+
 def validate_config(config):
 
     sdk_opts = (
@@ -41,6 +44,17 @@ def validate_config(config):
     )
     if sdk_opts.get("CONFIG_ULP_COPROC_ENABLED") != "y":
         raise cv.Invalid("ULP coprocessor must be enabled via sdkconfig_options in YAML (CONFIG_ULP_COPROC_ENABLED=y)")
+
+    # If threshold is set, check unit depending on output_raw
+    if CONF_THRESHOLD in config:
+        if config.get(CONF_RAW, False):
+            # Raw counts: must be between 0 and 4095 for 12-bit ADC
+            if not (0 <= config[CONF_THRESHOLD] <= 4095):
+                raise cv.Invalid("Threshold must be between 0 and 4095 ADC counts when output_raw is true")
+        else:
+            # Volts: must be within typical ESP32 ADC range
+            if not (0.0 <= config[CONF_THRESHOLD] <= 3.3):
+                raise cv.Invalid("Threshold must be between 0.0 and 3.3 V when output_raw is false")
 
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
@@ -54,12 +68,9 @@ def validate_config(config):
 
     return config
 
-
 ADCULPSensor = adc_ulp_ns.class_(
     "ADCULPSensor", sensor.Sensor, cg.Component, voltage_sampler.VoltageSampler
 )
-
-CONF_UPDATE_INTERVAL = "update_interval"
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
@@ -72,10 +83,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_PIN): validate_adc_pin,
+            cv.Required(CONF_THRESHOLD): cv.float,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
-            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
-                cv.only_on_esp32, _attenuation
-            ),
+            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(cv.only_on_esp32, _attenuation),
             cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
         }
     ),
@@ -89,10 +99,11 @@ async def to_code(config):
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
+    cg.add(var.set_threshold(config[CONF_THRESHOLD]))
     cg.add(var.set_output_raw(config[CONF_RAW]))
 
-    if update_interval := config.get(CONF_UPDATE_INTERVAL):
-        cg.add(var.set_update_interval(update_interval))
+    if CONF_UPDATE_INTERVAL in config:
+        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
     if attenuation := config.get(CONF_ATTENUATION):
         cg.add(var.set_attenuation(attenuation))
