@@ -21,9 +21,7 @@ from esphome.core import CORE
 from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
-    ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
-    SAMPLING_MODES,
-    adc_ns,
+    adc_ulp_ns,
     adc_unit_t,
     validate_adc_pin,
 )
@@ -32,22 +30,12 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["voltage_sampler"]
 
-CONF_SAMPLES = "samples"
-CONF_SAMPLING_MODE = "sampling_mode"
-
-
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
-_sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
-
 
 def validate_config(config):
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
 
-    if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
-        raise cv.Invalid(
-            "Automatic attenuation cannot be used when multisampling is set"
-        )
     if config.get(CONF_ATTENUATION) == "11db":
         _LOGGER.warning(
             "`attenuation: 11db` is deprecated, use `attenuation: 12db` instead"
@@ -58,8 +46,8 @@ def validate_config(config):
     return config
 
 
-ADCULPSensor = adc_ns.class_(
-    "ADCULPSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
+ADCULPSensor = adc_ulp_ns.class_(
+    "ADCULPSensor", sensor.Sensor, cg.Component, voltage_sampler.VoltageSampler
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -77,8 +65,6 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
-            cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
-            cv.Optional(CONF_SAMPLING_MODE, default="avg"): _sampling_mode,
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -94,8 +80,6 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     cg.add(var.set_output_raw(config[CONF_RAW]))
-    cg.add(var.set_sample_count(config[CONF_SAMPLES]))
-    cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
     if CORE.is_esp32:
         if attenuation := config.get(CONF_ATTENUATION):

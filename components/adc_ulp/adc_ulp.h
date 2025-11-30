@@ -16,7 +16,7 @@
 #include "hal/adc_types.h"  // This defines ADC_CHANNEL_MAX
 
 namespace esphome {
-namespace adc {
+namespace adc_ulp {
 
 // clang-format off
 #if (ESP_IDF_VERSION_MAJOR == 5 && \
@@ -30,7 +30,7 @@ static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_12;
 static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_11;
 #endif
 
-class ADCSensor : public sensor::Sensor, public voltage_sampler::VoltageSampler {
+class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sampler::VoltageSampler {
     public:
         /// Set up the ADC sensor by initializing hardware and calibration parameters.
         /// This method is called once during device initialization.
@@ -74,15 +74,12 @@ class ADCSensor : public sensor::Sensor, public voltage_sampler::VoltageSampler 
         void set_autorange(bool autorange) { this->autorange_ = autorange; }
 
     protected:
-        uint8_t sample_count_{1};
         bool output_raw_{false};
         InternalGPIOPin *pin_;
 
         float sample_autorange_();
         float sample_fixed_attenuation_();
         bool autorange_{false};
-        adc_oneshot_unit_handle_t adc_handle_{nullptr};
-        adc_cali_handle_t calibration_handle_{nullptr};
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
         adc_unit_t adc_unit_{};
@@ -93,9 +90,8 @@ class ADCSensor : public sensor::Sensor, public voltage_sampler::VoltageSampler 
             uint8_t calibration_complete : 1;
             uint8_t reserved : 4;
         } setup_flags_{};
-        static adc_oneshot_unit_handle_t shared_adc_handles[2];
 
 };
 
-}  // namespace adc
+}  // namespace adc_ulp
 }  // namespace esphome

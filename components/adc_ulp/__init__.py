@@ -12,7 +12,7 @@ from esphome.core import CORE
 
 CODEOWNERS = ["jonaskello"]
 
-adc_ns = cg.esphome_ns.namespace("adc")
+adc_ulp_ns = cg.esphome_ns.namespace("adc_ulp")
 
 """
 From the below patch versions (and 5.2+) ADC_ATTEN_DB_11 is deprecated and replaced with ADC_ATTEN_DB_12.
@@ -26,12 +26,12 @@ ATTENUATION_MODES = {
     "0db": cg.global_ns.ADC_ATTEN_DB_0,
     "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
     "6db": cg.global_ns.ADC_ATTEN_DB_6,
-    "11db": adc_ns.ADC_ATTEN_DB_12_COMPAT,
-    "12db": adc_ns.ADC_ATTEN_DB_12_COMPAT,
+    "11db": adc_ulp_ns.ADC_ATTEN_DB_12_COMPAT,
+    "12db": adc_ulp_ns.ADC_ATTEN_DB_12_COMPAT,
     "auto": "auto",
 }
 
-sampling_mode = adc_ns.enum("SamplingMode", is_class=True)
+sampling_mode = adc_ulp_ns.enum("SamplingMode", is_class=True)
 
 SAMPLING_MODES = {
     "avg": sampling_mode.AVG,
@@ -99,7 +99,7 @@ def validate_adc_pin(value):
 
     if not CORE.is_esp32:
         raise cv.Invalid("ULP ADC is only supported on ESP32 boards")
-    if CORE.esp32_framework != "idf":
+    if not CORE.using_esp_idf:
         raise cv.Invalid("ULP ADC is not supported with Arduino framework, only ESP-IDF")
 
     conf = pins.internal_gpio_input_pin_schema(value)

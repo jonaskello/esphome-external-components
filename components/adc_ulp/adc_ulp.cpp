@@ -1,6 +1,6 @@
 #ifdef USE_ESP32
 
-#include "adc_sensor.h"
+#include "adc_ulp.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -34,11 +34,12 @@ const LogString *adc_unit_to_str(adc_unit_t unit) {
     }
 }
 
-void ADCSensor::setup() {
+void ADCULPSensor::setup() {
     ESP_LOGCONFIG(TAG, "Initializing ULP ADC sensor");
 
-  // Configure ULP program here (load binary, set channel, threshold, etc.)
-  // Example placeholder:
+    // Configure ULP program here (load binary, set channel, threshold, etc.)
+    // Example placeholder:
+    bool ulp_init_success = false;
     if (!ulp_init_success) {
         ESP_LOGE(TAG, "ULP init failed");
         this->mark_failed();
@@ -48,7 +49,7 @@ void ADCSensor::setup() {
     ESP_LOGCONFIG(TAG, "ULP ADC sensor init complete");
 }
 
-void ADCSensor::dump_config() {
+void ADCULPSensor::dump_config() {
     LOG_SENSOR("", "ADC Sensor", this);
     LOG_PIN("  Pin: ", this->pin_);
     ESP_LOGCONFIG(TAG,
@@ -69,12 +70,12 @@ void ADCSensor::dump_config() {
     //     this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
 }
 
-float ADCSensor::sample() {
+float ADCULPSensor::sample() {
     // TODO: Fix to return ULP value
     return 0;
 }
 
-}  // namespace adc
+}  // namespace adc_ulp
 }  // namespace esphome
 
 #endif  // USE_ESP32
