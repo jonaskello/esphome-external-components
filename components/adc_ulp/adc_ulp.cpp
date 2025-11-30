@@ -109,6 +109,20 @@ void ADCULPSensor::setup() {
     this->setup_flags_.init_complete = true;
 }
 
+void ADCULPSensor::loop() {
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_ULP) {
+        uint32_t measured = RTC_SLOW_MEM[12];
+        ESP_LOGI(TAG, "ULP wake-up, measured ADC = %u", measured);
+
+        // Light the LED as a simple test
+        gpio_set_level(GPIO_NUM_2, 1);  // ON
+        delay(100);              // keep it on briefly
+        gpio_set_level(GPIO_NUM_2, 0);  // OFF
+
+        publish_state(measured);   // publish to YAML sensor
+    }
+}
+
 void ADCULPSensor::dump_config() {
     LOG_SENSOR("", "ADC ULP Sensor", this);
     LOG_PIN("  Pin: ", this->pin_);

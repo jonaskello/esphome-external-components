@@ -36,6 +36,9 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// This method is called once during device initialization.
         void setup() override;
 
+        /// Used to publish sensor value on wake. 
+        void loop() override;
+
         /// Output the configuration details of the ADC sensor for debugging purposes.
         /// This method is called during the ESPHome setup process to log the configuration.
         void dump_config() override;
