@@ -31,7 +31,7 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
 
 void ulp_adc_run(uint32_t update_interval_ms, uint32_t adc_channel, uint16_t threshold) {
 
-    const ulp_insn_t ulp_adc_prog[] = {
+    const ulp_insn_t ulp_prog[] = {
         I_MOVI(R3, 12),              // R3 -> RTC_SLOW_MEM[12] (baseline slot)
         I_ADC(R0, adc_channel, 0),   // R0 = ADC(current)
         I_LD(R1, R3, 0),             // R1 = baseline
@@ -53,8 +53,8 @@ void ulp_adc_run(uint32_t update_interval_ms, uint32_t adc_channel, uint16_t thr
     ulp_set_wakeup_period(0, update_interval_ms * 1000);
 
     // Load and start ULP program
-    size_t size = sizeof(ulp_adc_prog) / sizeof(ulp_insn_t);
-    ulp_process_macros_and_load(0, ulp_adc_prog, &size);
+    size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
+    ulp_process_macros_and_load(0, ulp_prog, &size);
     ulp_run(0);
 }
 
@@ -63,12 +63,26 @@ void ADCULPSensor::setup() {
     // Stop any previously running ULP program
     ulp_timer_stop();
 
-    // Init ADC pin
+    // Init ADC unit
     adc_oneshot_unit_handle_t adc1_handle;
     adc_oneshot_unit_init_cfg_t init_cfg = { .unit_id = ADC_UNIT_1 };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg, &adc1_handle));
+    esp_err_t err_unit = adc_oneshot_new_unit(&init_cfg, &adc1_handle);
+    if (err_unit != ESP_OK) {
+        ESP_LOGE(TAG, "Error initializing ADC1: %d", err_unit);
+        this->mark_failed();
+        return;
+    }
+    this->setup_flags_.handle_init_complete = true;
+
+    // Init ADC channel 
     adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, channel_, &chan_cfg));
+    esp_err_t err_channel = adc_oneshot_config_channel(adc1_handle, channel_, &chan_cfg);
+    if (err_channel != ESP_OK) {
+        ESP_LOGE(TAG, "Error configuring channel: %d", err_channel);
+        this->mark_failed();
+        return;
+    }
+    this->setup_flags_.config_complete = true;
 
     // Prime baseline with one CPU-side read
     int baseline = 0;
@@ -97,15 +111,15 @@ void ADCULPSensor::dump_config() {
                 "  Attenuation:   %s\n",
                 this->channel_, LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
 
-    // ESP_LOGCONFIG(
-    //     TAG,
-    //     "  Setup Status:\n"
-    //     "    Handle Init:  %s\n"
-    //     "    Config:       %s\n"
-    //     "    Calibration:  %s\n"
-    //     "    Overall Init: %s",
-    //     this->setup_flags_.handle_init_complete ? "OK" : "FAILED", this->setup_flags_.config_complete ? "OK" : "FAILED",
-    //     this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
+    ESP_LOGCONFIG(
+        TAG,
+        "  Setup Status:\n"
+        "    Handle Init:  %s\n"
+        "    Config:       %s\n"
+        "    Calibration:  %s\n"
+        "    Overall Init: %s",
+        this->setup_flags_.handle_init_complete ? "OK" : "FAILED", this->setup_flags_.config_complete ? "OK" : "FAILED",
+        this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
 }
 
 float ADCULPSensor::sample() {
