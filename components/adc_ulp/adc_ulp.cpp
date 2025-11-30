@@ -60,25 +60,8 @@ void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
 
 void ADCULPSensor::setup() {
 
-    // // Configure ULP program here (load binary, set channel, threshold, etc.)
-    // // Example placeholder:
-    // bool ulp_init_success = false;
-    // if (!ulp_init_success) {
-    //     ESP_LOGE(TAG, "ULP init failed");
-    //     this->mark_failed();
-    //     return;
-    // }
-
     // Stop any previously running ULP program
     ulp_timer_stop();
-
-    // // Convert GPIO pin to ADC channel
-    // int gpio = pin_->get_pin();
-    // adc_channel_ = gpio_to_adc_channel(gpio);            
-    // if (adc_channel_ < 0) {
-    //     mark_failed("Specified pin is not ADC1-capable, only ADC1 can be used by ULP");
-    //     return;
-    // }
 
     // Init ADC pin
     adc_oneshot_unit_handle_t adc1_handle;
@@ -101,8 +84,8 @@ void ADCULPSensor::setup() {
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
     // Run ULP
-    uint32_t delay_us = static_cast<uint32_t>(interval_) * 1000; // interval_ is in milliseconds
-    ulp_adc_run(delay_us, adc_channel_, threshold_); 
+    uint32_t delay_us = static_cast<uint32_t>(update_interval_ms_) * 1000;
+    ulp_adc_run(delay_us, channel_, threshold_); 
 
 }
 

@@ -83,7 +83,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_PIN): validate_adc_pin,
-            cv.Required(CONF_THRESHOLD): cv.float,
+            cv.Required(CONF_THRESHOLD): cv.float_,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(cv.only_on_esp32, _attenuation),
             cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,

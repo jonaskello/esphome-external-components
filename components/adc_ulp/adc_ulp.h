@@ -66,6 +66,9 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// The interval that the ULP will read ADC
         void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
+        /// The threshold for waking up the CPU and reporting the sensor value
+        void set_threshold(uint16_t threshold) { threshold_ = threshold; }
+
     protected:
         bool output_raw_{false};
         InternalGPIOPin *pin_;
