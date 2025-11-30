@@ -29,7 +29,7 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
     }
 }
 
-void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
+void ulp_adc_run(uint32_t update_interval_ms, uint32_t adc_channel, uint16_t threshold) {
 
     const ulp_insn_t ulp_adc_prog[] = {
         I_MOVI(R3, 12),              // R3 -> RTC_SLOW_MEM[12] (baseline slot)
@@ -50,7 +50,7 @@ void ulp_adc_run(uint32_t us, uint32_t adc_channel, uint16_t threshold) {
     };
 
     // Microseconds to delay between halt and wake states
-    ulp_set_wakeup_period(0, us);
+    ulp_set_wakeup_period(0, update_interval_ms * 1000);
 
     // Load and start ULP program
     size_t size = sizeof(ulp_adc_prog) / sizeof(ulp_insn_t);
@@ -84,8 +84,7 @@ void ADCULPSensor::setup() {
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
 
     // Run ULP
-    uint32_t delay_us = static_cast<uint32_t>(update_interval_ms_) * 1000;
-    ulp_adc_run(delay_us, channel_, threshold_); 
+    ulp_adc_run(update_interval_ms_, channel_, threshold_); 
 
 }
 
