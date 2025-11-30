@@ -99,6 +99,8 @@ def validate_adc_pin(value):
 
     if not CORE.is_esp32:
         raise cv.Invalid("ULP ADC is only supported on ESP32 boards")
+    if CORE.esp32_framework != "idf":
+        raise cv.Invalid("ULP ADC is not supported with Arduino framework, only ESP-IDF")
 
     conf = pins.internal_gpio_input_pin_schema(value)
     value = conf[CONF_NUMBER]

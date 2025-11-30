@@ -1,22 +1,23 @@
 #pragma once
+#ifdef USE_ESP32
+  // esp_adc includes
+#else
+    #error "This ADC component only supports ESP32 (ESP-IDF)."
+#endif
 
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-
-#ifdef USE_ESP32
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
 #include "hal/adc_types.h"  // This defines ADC_CHANNEL_MAX
-#endif                      // USE_ESP32
 
 namespace esphome {
 namespace adc {
 
-#ifdef USE_ESP32
 // clang-format off
 #if (ESP_IDF_VERSION_MAJOR == 5 && \
     ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
@@ -28,7 +29,6 @@ static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_12;
 #else
 static const adc_atten_t ADC_ATTEN_DB_12_COMPAT = ADC_ATTEN_DB_11;
 #endif
-#endif  // USE_ESP32
 
 enum class SamplingMode : uint8_t {
     AVG = 0,
@@ -97,7 +97,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
     /// @return The sampled value as a float.
     float sample() override;
 
-#ifdef USE_ESP32
     /// Set the ADC attenuation level to adjust the input voltage range.
     /// This determines how the ADC interprets input voltages, allowing for greater precision
     /// or the ability to measure higher voltages depending on the chosen attenuation level.
@@ -117,7 +116,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
     /// Autoranging automatically adjusts the attenuation level to handle a wide range of input voltages.
     /// @param autorange Boolean indicating whether to enable autoranging.
     void set_autorange(bool autorange) { this->autorange_ = autorange; }
-#endif  // USE_ESP32
 
     protected:
         uint8_t sample_count_{1};
@@ -125,7 +123,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
         InternalGPIOPin *pin_;
         SamplingMode sampling_mode_{SamplingMode::AVG};
 
-#ifdef USE_ESP32
         float sample_autorange_();
         float sample_fixed_attenuation_();
         bool autorange_{false};
@@ -142,7 +139,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
             uint8_t reserved : 4;
         } setup_flags_{};
         static adc_oneshot_unit_handle_t shared_adc_handles[2];
-#endif  // USE_ESP32
 
 };
 
