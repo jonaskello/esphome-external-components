@@ -73,8 +73,8 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// @param autorange Boolean indicating whether to enable autoranging.
         void set_autorange(bool autorange) { this->autorange_ = autorange; }
 
-        // The interval that the ULP will read ADC
-        void set_update_interval(uint32_t interval_ms) { this->ulp_interval_ms_ = interval_ms; }
+        /// The interval that the ULP will read ADC
+        void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
     protected:
         bool output_raw_{false};
@@ -83,7 +83,7 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         float sample_autorange_();
         float sample_fixed_attenuation_();
         bool autorange_{false};
-        uint32_t ulp_interval_ms_{1000};  // default 1s
+        uint32_t update_interval_ms_{1000};  // default 1s
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
         adc_unit_t adc_unit_{};
