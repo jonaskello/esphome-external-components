@@ -107,9 +107,9 @@ def validate_adc_pin(value):
     variant = get_esp32_variant()
 
     if variant not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL:
-        raise cv.Invalid(f"This ESP32 variant ({variant}) is not supported")
+        raise cv.Invalid(f"This ESP32 variant ({variant}) is not supported since it does not have ULP")
 
     if value not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]:
-        raise cv.Invalid(f"{variant} doesn't support ADC on this pin")
+        raise cv.Invalid(f"{variant} doesn't support ULP ADC on this pin (only pins mapped to ADC1 channels are valid)")
 
     return conf
