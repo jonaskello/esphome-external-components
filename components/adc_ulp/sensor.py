@@ -33,6 +33,15 @@ AUTO_LOAD = ["voltage_sampler"]
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 
 def validate_config(config):
+
+    sdk_opts = (
+        CORE.raw_config.get("esp32", {})
+        .get("framework", {})
+        .get("sdkconfig_options", {})
+    )
+    if sdk_opts.get("CONFIG_ULP_COPROC_ENABLED") != "y":
+        raise cv.Invalid("ULP coprocessor must be enabled via sdkconfig_options in YAML (CONFIG_ULP_COPROC_ENABLED=y)")
+
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
 

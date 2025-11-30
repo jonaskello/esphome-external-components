@@ -44,14 +44,14 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// @param pin Pointer to an InternalGPIOPin representing the ADC input pin.
         void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
 
-        /// Enable or disable the output of raw ADC values (unprocessed data).
-        /// @param output_raw Boolean indicating whether to output raw ADC values (true) or processed values (false).
-        void set_output_raw(bool output_raw) { this->output_raw_ = output_raw; }
-
         /// Perform a single ADC sampling operation and return the measured value.
         /// This function handles raw readings, calibration, and averaging as needed.
         /// @return The sampled value as a float.
         float sample() override;
+
+        /// Enable or disable the output of raw ADC values (unprocessed data).
+        /// @param output_raw Boolean indicating whether to output raw ADC values (true) or processed values (false).
+        void set_output_raw(bool output_raw) { this->output_raw_ = output_raw; }
 
         /// Set the ADC attenuation level to adjust the input voltage range.
         /// This determines how the ADC interprets input voltages, allowing for greater precision
