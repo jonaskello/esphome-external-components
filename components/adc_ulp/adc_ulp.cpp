@@ -139,23 +139,11 @@ void ADCULPSensor::setup() {
 
 void ADCULPSensor::loop() {
 
-    // // Wait for WIFI so the published value is forwarded
-    // bool remote_timed_out = false;
-    // const int remote_wait_ms = 2000;
-    // unsigned long start = millis();
-    // while (!remote_is_connected() && !remote_timed_out) {
-    //     ESP_LOGI(TAG, "Waiting for connection to remote...");
-    //     delay(1000);
-    //     remote_timed_out = millis() - start > remote_wait_ms;
-    // }
-    // if(remote_timed_out) {
-    //     ESP_LOGI(TAG, "Timed out while waiting for remote connection, published value will not be sent");
-    // }
-
     // Wait for remote connection so the published value is sent
     static unsigned long t0 = 0, last = 0;
     static bool gave_up = false;
     const int wait_ms = 30000, log_ms = 1000;
+    const int send_delay = 5000;
     if(t0 == 0) {
         ESP_LOGI(TAG, "Wait %d ms for remote to connect...", wait_ms);
     }
@@ -163,14 +151,15 @@ void ADCULPSensor::loop() {
         if (!t0) t0 = millis();
         if (millis() - last >= log_ms) { ESP_LOGI(TAG, "Waiting for connection to remote..."); last = millis(); }
         if (millis() - t0 > wait_ms) { gave_up = true; }
+        delay(2000);
         return;
     }
     if(gave_up) {
         ESP_LOGI(TAG, "Timeout while waiting for remote, published values will not be sent");
     }
     else {
-        ESP_LOGI(TAG, "Remote connected, delaying 200ms to send published values...");
-        delay(200);
+        ESP_LOGI(TAG, "Remote connected, delaying %d ms to send published values...", send_delay);
+        delay(send_delay);
     }
     t0 = 0;  // connected: reset timeout state
     gave_up = false;
