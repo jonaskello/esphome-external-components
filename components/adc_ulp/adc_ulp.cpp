@@ -131,7 +131,7 @@ void ADCULPSensor::setup() {
     ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
 
     // Microseconds to delay between ULP halt and wake states
-    esp_err_t r = ulp_set_wakeup_period(0, 100 * 1000);
+    esp_err_t r = ulp_set_wakeup_period(0, update_interval_ms_ * 1000);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
         this->mark_failed();
@@ -149,12 +149,11 @@ void ADCULPSensor::setup() {
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-
     // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
     // Wait for log
-    fflush(stdout);  // flush libc buffer
+    fflush(stdout);
     uart_wait_tx_idle_polling(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
 
     // Tell ULP to start making measurements
