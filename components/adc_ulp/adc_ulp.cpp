@@ -157,8 +157,14 @@ void ADCULPSensor::loop() {
 
     // Immediately go back to deep sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
-    delay(100);  // give logger time to flush
-    RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1; // Tell ULP to start making measurements
+
+    // Wait for log
+    fflush(stdout);  // flush libc buffer
+    uart_wait_tx_idle_polling(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
+
+    // Tell ULP to start making measurements
+    RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
+    // Enter sleep
     esp_deep_sleep_start();
 }
 
