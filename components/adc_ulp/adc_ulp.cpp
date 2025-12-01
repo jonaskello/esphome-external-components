@@ -76,48 +76,47 @@ void ADCULPSensor::setup() {
         RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] = 1;
         RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] = 2;
 
-    }
+        // Define ULP program
+        const ulp_insn_t ulp_prog[] = {
 
-    // Define ULP program
-    const ulp_insn_t ulp_prog[] = {
+            // Use R3 as data pointer in the whole program
+            I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
 
-        // Use R3 as data pointer in the whole program
-        I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
+            // Check ARM flag so we don't measure values when the CPU is awake
+            I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
+            M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
 
-        // Check ARM flag so we don't measure values when the CPU is awake
-        I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
-        M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
+            // Run real program when armed
+            I_ADC(R2, 0, (uint32_t)channel_),  // R2 = raw ADC
+            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+            I_SUBR(R0, R2, R1),                // R0 = raw - baseline
+            // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
+            // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
+            M_BGE(1, threshold_),              // if diff >= threshold goto wake
+            I_SUBR(R0, R1, R2),                // R0 = baseline - raw
+            M_BGE(1, threshold_),              // if diff >= threshold goto wake
+            M_BX(2),                           // else skip wake
+            M_LABEL(1),
+                I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+                I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
+                I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
+                I_WAKE(),                       // wake CPU
+            M_LABEL(2),
+                I_HALT()                        // halt
+        };
 
-        // Run real program when armed
-        I_ADC(R2, 0, (uint32_t)channel_),  // R2 = raw ADC
-        I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-        I_SUBR(R0, R2, R1),                // R0 = raw - baseline
-        // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
-        // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
-        M_BGE(1, threshold_),              // if diff >= threshold goto wake
-        I_SUBR(R0, R1, R2),                // R0 = baseline - raw
-        M_BGE(1, threshold_),              // if diff >= threshold goto wake
-        M_BX(2),                           // else skip wake
-        M_LABEL(1),
-            I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
-            I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
-            I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
-            I_WAKE(),                       // wake CPU
-        M_LABEL(2),
-            I_HALT()                        // halt
-    };
-
-    // Load ULP program into RTC memory
-    size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
-    esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
-    if (r != ESP_OK) {
-        ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
-        this->mark_failed();
-        return;
+        // Load ULP program into RTC memory
+        size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
+        esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
+        if (r != ESP_OK) {
+            ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
+            this->mark_failed();
+            return;
+        }
     }
 
     // Microseconds to delay between ULP halt and wake states
-    r = ulp_set_wakeup_period(0, 100 * 1000);
+    esp_err_t r = ulp_set_wakeup_period(0, 100 * 1000);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
         this->mark_failed();
