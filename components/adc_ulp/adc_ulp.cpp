@@ -41,9 +41,6 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
 
 void ADCULPSensor::setup() {
 
-    // Disable WiFi at boot
-    // esphome::wifi::global_wifi_component->disable();
-
     // Stop any previously running ULP program
     ulp_timer_stop();
 
@@ -137,29 +134,36 @@ void ADCULPSensor::setup() {
 
 }
 
+float ADCULPSensor::get_setup_priority() const { return setup_priority::LATE; }
+
+float ADCULPSensor::get_loop_priority() const {
+  return -100.0f;  // run after everything else is ready
+}
+
 void ADCULPSensor::loop() {
 
     // Wait for remote connection so the published value is sent
     static unsigned long t0 = 0, last = 0;
     static bool gave_up = false;
-    const int wait_ms = 30000, log_ms = 1000;
-    const int send_delay = 5000;
+    const int wait_ms = 80000, log_ms = 1000;
     if(t0 == 0) {
         ESP_LOGI(TAG, "Wait %d ms for remote to connect...", wait_ms);
     }
-    if (!remote_is_connected() && !gave_up) {
+    bool remote_connected = remote_is_connected();
+    // bool remote_connected = api::global_api_server->is_connected();
+    if (!remote_connected && !gave_up) {
         if (!t0) t0 = millis();
-        if (millis() - last >= log_ms) { ESP_LOGI(TAG, "Waiting for connection to remote..."); last = millis(); }
+        if (millis() - last >= log_ms) { ESP_LOGI(TAG, "Waiting for remote connection (api or mqtt)... %d", (last - t0) / 1000); last = millis(); }
         if (millis() - t0 > wait_ms) { gave_up = true; }
-        delay(2000);
         return;
     }
     if(gave_up) {
         ESP_LOGI(TAG, "Timeout while waiting for remote, published values will not be sent");
     }
     else {
-        ESP_LOGI(TAG, "Remote connected, delaying %d ms to send published values...", send_delay);
-        delay(send_delay);
+        ESP_LOGI(TAG, "Remote connected...", send_delay);
+        // const int send_delay = 500;
+        // delay(send_delay);
     }
     t0 = 0;  // connected: reset timeout state
     gave_up = false;
@@ -203,7 +207,6 @@ void ADCULPSensor::loop() {
     esp_deep_sleep_start();
 
 }
-
 
 void ADCULPSensor::dump_config() {
     LOG_SENSOR("", "ADC ULP Sensor", this);
