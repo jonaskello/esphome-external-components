@@ -16,6 +16,9 @@ static const char *const TAG = "adc_ulp.esp32";
 
 #define DATA_BASE_SLOT     64
 #define BASELINE_OFFSET    0
+#define ARM_OFFSET         1
+#define DEBUG1_OFFSET      2
+#define DEBUG2_OFFSET      3
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
     switch (attenuation) {
@@ -75,25 +78,37 @@ void ADCULPSensor::setup() {
     // If this is the first power on (not wakeup), load the RTC with inital values 
     if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
         // Set baseline out of range baseline to trigger first value publish
-        RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x0FFFFFFFF;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x7FFF;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] = 1;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] = 2;
         ESP_LOGI(TAG, "First power on, loaded intial values into RTC");
     }
 
     // Run ULP
     const ulp_insn_t ulp_prog[] = {
-        I_MOVI(R3, DATA_BASE_SLOT),       // R3 = base pointer
-        I_ADC(R2, 0, (uint32_t)channel_), // R2 = raw ADC
-        I_LD(R1, R3, BASELINE_OFFSET * 4),    // R1 = baseline
-        I_SUBR(R0, R2, R1),               // R0 = raw - baseline
-        I_BGE(1, threshold_),             // if diff >= threshold goto wake
-        I_SUBR(R0, R1, R2),               // R0 = baseline - raw
-        I_BGE(1, threshold_),             // if diff >= threshold goto wake
-        M_BX(2),                          // else skip wake
+
+        I_MOVI(R3, DATA_BASE_SLOT),        // R3 = base pointer
+
+        // Check ARM flag so we don't measure values when the CPU is awake
+        I_LD(R0, R3, ARM_OFFSET),   // R0 = ARM
+        M_BL(2, 1),             // if ARM<1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
+
+        I_ADC(R2, 0, (uint32_t)channel_),  // R2 = raw ADC
+        I_LD(R1, R3, BASELINE_OFFSET), // R1 = baseline
+        I_SUBR(R0, R2, R1),                // R0 = raw - baseline
+    I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
+    I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
+        M_BGE(1, threshold_),              // if diff >= threshold goto wake
+        I_SUBR(R0, R1, R2),                // R0 = baseline - raw
+        M_BGE(1, threshold_),              // if diff >= threshold goto wake
+        M_BX(2),                           // else skip wake
         M_LABEL(1),
             I_WAKE(),                       // wake CPU
-            I_ST(R2, R3, BASELINE_OFFSET * 4),  // update baseline with raw ADC
+            I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+            I_MOVI(R0, 0),                  // clear ARM
+            I_ST(R0, R3, ARM_OFFSET),
         M_LABEL(2),
-        I_HALT()                          // halt
+            I_HALT()                           // halt
     };
 
     // Microseconds to delay between halt and wake states
@@ -136,9 +151,14 @@ void ADCULPSensor::loop() {
         ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
     }
 
+    ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
+
     // Immediately go back to deep sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
-    delay(1000);  // give logger time to flush
+    delay(100);  // give logger time to flush
+    RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
     esp_deep_sleep_start();
 }
 
@@ -148,8 +168,9 @@ void ADCULPSensor::dump_config() {
     ESP_LOGCONFIG(TAG,
                 "  Channel:       %d\n"
                 "  Unit:          ADC1\n"
+                "  Threshold:     %d\n"
                 "  Attenuation:   %s\n",
-                this->channel_, LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
+                this->channel_, this->threshold_, LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
 
     ESP_LOGCONFIG(
         TAG,
