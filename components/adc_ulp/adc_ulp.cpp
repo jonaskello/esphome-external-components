@@ -161,7 +161,7 @@ void ADCULPSensor::loop() {
         ESP_LOGI(TAG, "Timeout while waiting for remote, published values will not be sent");
     }
     else {
-        ESP_LOGI(TAG, "Remote connected...", send_delay);
+        ESP_LOGI(TAG, "Remote connected...");
         // const int send_delay = 500;
         // delay(send_delay);
     }
