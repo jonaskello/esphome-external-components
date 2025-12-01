@@ -114,7 +114,8 @@ void ADCULPSensor::setup() {
             return;
         }
         ESP_LOGI(TAG, "First power on, init ULP completed...");
-
+        this->setup_flags_.init_complete = true;
+        dump_config();
     }
     else {
         // Publish only on wakeup from ULP
@@ -148,6 +149,7 @@ void ADCULPSensor::setup() {
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
+
     // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
@@ -161,12 +163,12 @@ void ADCULPSensor::setup() {
     esp_deep_sleep_start();
 
 
-    // this->setup_flags_.init_complete = true;
 }
 
 void ADCULPSensor::loop() {
     // Do nothing since we sleep before we get here
 }
+
 
 void ADCULPSensor::dump_config() {
     LOG_SENSOR("", "ADC ULP Sensor", this);
