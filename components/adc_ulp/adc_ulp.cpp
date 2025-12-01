@@ -124,12 +124,7 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
     }
 
-
-    this->setup_flags_.init_complete = true;
-}
-
-void ADCULPSensor::loop() {
-
+    // Debug print
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
@@ -153,8 +148,7 @@ void ADCULPSensor::loop() {
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-
-    // Immediately go back to deep sleep
+    // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
     // Wait for log
@@ -165,6 +159,13 @@ void ADCULPSensor::loop() {
     RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
     // Enter sleep
     esp_deep_sleep_start();
+
+
+    // this->setup_flags_.init_complete = true;
+}
+
+void ADCULPSensor::loop() {
+    // Do nothing since we sleep before we get here
 }
 
 void ADCULPSensor::dump_config() {
