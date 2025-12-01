@@ -15,6 +15,9 @@ namespace adc_ulp {
 
 static const char *const TAG = "adc_ulp.esp32";
 
+// 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
+static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
+
 #define DATA_BASE_SLOT     64
 #define BASELINE_OFFSET    0
 #define ARM_OFFSET         1
@@ -152,7 +155,7 @@ void ADCULPSensor::loop() {
     // Wait for remote connection so the published value is sent
     static unsigned long t0 = 0, last = 0;
     static bool gave_up = false;
-    const int wait_ms = 5000, log_ms = 1000;
+    const int wait_ms = 30000, log_ms = 1000;
     if(t0 == 0) {
         ESP_LOGI(TAG, "Wait %d ms for remote to connect...", wait_ms);
     }
@@ -163,7 +166,7 @@ void ADCULPSensor::loop() {
         return;
     }
     if(gave_up) {
-        ESP_LOGI(TAG, "Timeout while waiting for remote");
+        ESP_LOGI(TAG, "Timeout while waiting for remote, published values will not be sent");
     }
     else {
         ESP_LOGI(TAG, "Remote connected, delaying 200ms to send published values...");
@@ -171,6 +174,13 @@ void ADCULPSensor::loop() {
     }
     t0 = 0;  // connected: reset timeout state
     gave_up = false;
+
+    // Tell esphome this was "successful" to not trigger safe mode
+    App.run_safe_shutdown_hooks();
+    // It's critical to teardown components cleanly for deep sleep to ensure
+    // Home Assistant sees a clean disconnect instead of marking the device unavailable
+    App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
+    App.run_powerdown_hooks();
 
     // Microseconds to delay between ULP halt and wake states
     esp_err_t r = ulp_set_wakeup_period(0, update_interval_ms_ * 1000);
