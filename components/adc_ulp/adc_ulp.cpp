@@ -15,8 +15,12 @@ namespace adc_ulp {
 static const char *const TAG = "adc_ulp.esp32";
 
 // Reserve safe slots beyond instruction region
-static const int BASELINE_SLOT  = 64;
-static const int THRESHOLD_SLOT = 65;
+// static const int BASELINE_SLOT  = 64;
+// static const int THRESHOLD_SLOT = 65;
+
+#define DATA_BASE_SLOT     64
+#define BASELINE_OFFSET    0
+#define THRESHOLD_OFFSET   1
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
     switch (attenuation) {
@@ -36,7 +40,7 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
 void ADCULPSensor::setup() {
 
     // Disable WiFi at boot
-    esphome::wifi::global_wifi_component->disable();
+    // esphome::wifi::global_wifi_component->disable();
 
     // Stop any previously running ULP program
     ulp_timer_stop();
@@ -73,57 +77,32 @@ void ADCULPSensor::setup() {
     // this->setup_flags_.calibration_complete = true;
     // ESP_LOGI(TAG, "Primed baseline with initial ADC value: %d", baseline);
 
-    // return;
-
-    // Initial values for the ULP memory
-    RTC_SLOW_MEM[BASELINE_SLOT] = baseline;
-    RTC_SLOW_MEM[THRESHOLD_SLOT] = threshold_;
-
-    // // Use internal led for testing
-    // gpio_reset_pin(GPIO_NUM_2);
-    // gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
-
-    // Configure ADC1
-    // adc1_config_width(ADC_WIDTH_BIT_12);
-    // adc1_config_channel_atten(ADC1_CHANNEL_6, ADC_ATTEN_DB_11);
-    // adc1_ulp_enable();
-
-    // // Init the ADC pin for use in ULP/RTC
-    // // gpio_num_t gpio = (gpio_num_t) pin_->get_pin();
-    // rtc_gpio_init(GPIO_NUM_36);
-    // rtc_gpio_set_direction(GPIO_NUM_36, RTC_GPIO_MODE_INPUT_ONLY);
-    // rtc_gpio_pullup_dis(GPIO_NUM_36);
-    // rtc_gpio_pulldown_dis(GPIO_NUM_36);
+    // If this is the first power on (not wakeup), load the RTC with inital values 
+    if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
+        // Set baseline out of range baseline to trigger first value publish
+        RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x0FFFFFFFF;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_OFFSET] = threshold_;
+        ESP_LOGI(TAG, "First power on, loaded intial values into RTC");
+    }
 
     // Run ULP
     const ulp_insn_t ulp_prog[] = {
-        // I_ADC(R0, 0, (uint32_t) channel_),              // read ADC1 channel
-        I_ADC(R0, 0, 0),              // read ADC1 channel
-        // I_ADC(R0, 0, 0),              // read ADC1 channel 6 (GPIO34)
-        I_MOVI(R3, BASELINE_SLOT),    // R3=slot address
-        I_ST(R0, R3, 0),              // store ADC value into baseline slot
-        I_WAKE(),                     // wake CPU
+        I_MOVI(R3, DATA_BASE_SLOT),       // R3 points to -> RTC_SLOW_MEM[DATA_BASE_SLOT]
+        I_ADC(R0, 0, (uint32_t)channel_), // R0 = current ADC
+        I_LD(R1, R3, BASELINE_OFFSET),    // R1 = baseline
+        I_SUBR(R2, R0, R1),               // R2 = diff
+        I_LD(R1, R3, THRESHOLD_OFFSET),   // R1 = threshold
+        M_BGE(1, R2, R1),                 // if diff >= threshold goto wake
+        M_BX(2),                          // else skip wake
+        M_LABEL(1),
+            I_WAKE(),                       // wake CPU
+            I_ST(R0, R3, BASELINE_OFFSET),  // update baseline
+        M_LABEL(2),
         I_HALT()
-
-        // I_MOVI(R3, BASELINE_SLOT),   // R3 -> RTC_SLOW_MEM[BASELINE_SLOT]
-        // I_ADC(R0, channel_, 0),      // R0 = ADC(current)
-        // I_LD(R1, R3, 0),             // R1 = baseline
-        // I_SUBR(R2, R0, R1),          // R2 = difference = current - baseline
-        // I_MOVI(R3, THRESHOLD_SLOT),  // reuse R3 -> RTC_SLOW_MEM[THRESHOLD_SLOT]
-        // I_LD(R1, R3, 0),             // R1 = threshold (overwrites baseline)
-        // I_SUBR(R2, R2, R1),          // R2 = difference - threshold
-        // M_BGE(1, 0),                 // if R2 >= 0, goto label 1 (wake)
-        // M_BX(2),                     // otherwise, skip wake
-        // M_LABEL(1),
-        //   I_WAKE(),                  // wake main CPU
-        //   I_MOVI(R3, BASELINE_SLOT), // reload baseline slot address
-        //   I_ST(R0, R3, 0),           // baseline = current
-        // M_LABEL(2),
-        // I_HALT()
     };
 
     // Microseconds to delay between halt and wake states
-    esp_err_t r = ulp_set_wakeup_period(0, 5000 * 1000);
+    esp_err_t r = ulp_set_wakeup_period(0, 1000 * 1000);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
         this->mark_failed();
@@ -154,12 +133,13 @@ void ADCULPSensor::setup() {
 void ADCULPSensor::loop() {
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     ESP_LOGI(TAG, "Wakeup cause: %d", cause);
-
-    // Always publish once per wake cycle
-    uint32_t raw_measure = RTC_SLOW_MEM[BASELINE_SLOT];
-    uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
-    publish_state(actual_measure);
-    ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
+    if(cause == ESP_SLEEP_WAKEUP_ULP) {
+        // Publish only on wakeup from ULP
+        uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
+        uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
+        publish_state(actual_measure);
+        ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
+    }
 
     // Immediately go back to deep sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
