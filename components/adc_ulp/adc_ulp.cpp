@@ -116,22 +116,19 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "First power on, init ULP completed...");
 
     }
-
-
-
-    this->setup_flags_.init_complete = true;
-}
-
-void ADCULPSensor::loop() {
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    ESP_LOGI(TAG, "Wakeup cause: %d", cause);
-    if(cause == ESP_SLEEP_WAKEUP_ULP) {
+    else {
         // Publish only on wakeup from ULP
         uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
         uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
         publish_state(actual_measure);
         ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
     }
+
+
+    this->setup_flags_.init_complete = true;
+}
+
+void ADCULPSensor::loop() {
 
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
