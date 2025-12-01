@@ -14,13 +14,8 @@ namespace adc_ulp {
 
 static const char *const TAG = "adc_ulp.esp32";
 
-// Reserve safe slots beyond instruction region
-// static const int BASELINE_SLOT  = 64;
-// static const int THRESHOLD_SLOT = 65;
-
 #define DATA_BASE_SLOT     64
 #define BASELINE_OFFSET    0
-#define THRESHOLD_OFFSET   1
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
     switch (attenuation) {
@@ -81,7 +76,6 @@ void ADCULPSensor::setup() {
     if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
         // Set baseline out of range baseline to trigger first value publish
         RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x0FFFFFFFF;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_OFFSET] = threshold_;
         ESP_LOGI(TAG, "First power on, loaded intial values into RTC");
     }
 
@@ -89,15 +83,15 @@ void ADCULPSensor::setup() {
     const ulp_insn_t ulp_prog[] = {
         I_MOVI(R3, DATA_BASE_SLOT),       // R3 = base pointer
         I_ADC(R2, 0, (uint32_t)channel_), // R2 = raw ADC
-        I_LD(R1, R3, BASELINE_OFFSET),    // R1 = baseline
+        I_LD(R1, R3, BASELINE_OFFSET * 4),    // R1 = baseline
         I_SUBR(R0, R2, R1),               // R0 = raw - baseline
-        I_SUBR(R1, R1, R2),               // R1 = baseline - raw
-        I_MAX(R0, R0, R1),                // R0 = abs(diff)
-        I_BGE(1, threshold_),             // if abs(diff) >= threshold goto wake
+        I_BGE(1, threshold_),             // if diff >= threshold goto wake
+        I_SUBR(R0, R1, R2),               // R0 = baseline - raw
+        I_BGE(1, threshold_),             // if diff >= threshold goto wake
         M_BX(2),                          // else skip wake
         M_LABEL(1),
             I_WAKE(),                       // wake CPU
-            I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+            I_ST(R2, R3, BASELINE_OFFSET * 4),  // update baseline with raw ADC
         M_LABEL(2),
         I_HALT()                          // halt
     };
