@@ -153,7 +153,7 @@ void ADCULPSensor::loop() {
     // bool remote_connected = api::global_api_server->is_connected();
     if (!remote_connected && !gave_up) {
         if (!t0) t0 = millis();
-        if (millis() - last >= log_ms) { ESP_LOGI(TAG, "Waiting for remote connection (api or mqtt)... %d", (last - t0) / 1000); last = millis(); }
+        if (millis() - last >= log_ms) { last = millis(); ESP_LOGI(TAG, "Waiting for remote connection (api or mqtt)... %d", (last - t0) / 1000); }
         if (millis() - t0 > wait_ms) { gave_up = true; }
         return;
     }
