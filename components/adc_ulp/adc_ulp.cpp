@@ -113,7 +113,29 @@ void ADCULPSensor::setup() {
             this->mark_failed();
             return;
         }
+        ESP_LOGI(TAG, "First power on, init ULP completed...");
+
     }
+
+
+
+    this->setup_flags_.init_complete = true;
+}
+
+void ADCULPSensor::loop() {
+    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+    ESP_LOGI(TAG, "Wakeup cause: %d", cause);
+    if(cause == ESP_SLEEP_WAKEUP_ULP) {
+        // Publish only on wakeup from ULP
+        uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
+        uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
+        publish_state(actual_measure);
+        ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
+    }
+
+    ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
 
     // Microseconds to delay between ULP halt and wake states
     esp_err_t r = ulp_set_wakeup_period(0, 100 * 1000);
@@ -134,26 +156,6 @@ void ADCULPSensor::setup() {
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    ESP_LOGI(TAG, "First power on, init ULP completed...");
-
-
-    this->setup_flags_.init_complete = true;
-}
-
-void ADCULPSensor::loop() {
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    ESP_LOGI(TAG, "Wakeup cause: %d", cause);
-    if(cause == ESP_SLEEP_WAKEUP_ULP) {
-        // Publish only on wakeup from ULP
-        uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
-        uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
-        publish_state(actual_measure);
-        ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
-    }
-
-    ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
-    ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
-    ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
 
     // Immediately go back to deep sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
