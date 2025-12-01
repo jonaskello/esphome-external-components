@@ -87,18 +87,19 @@ void ADCULPSensor::setup() {
 
     // Run ULP
     const ulp_insn_t ulp_prog[] = {
-        I_MOVI(R3, DATA_BASE_SLOT),       // R3 points to -> RTC_SLOW_MEM[DATA_BASE_SLOT]
-        I_ADC(R0, 0, (uint32_t)channel_), // R0 = current ADC
+        I_MOVI(R3, DATA_BASE_SLOT),       // R3 = base pointer
+        I_ADC(R2, 0, (uint32_t)channel_), // R2 = raw ADC
         I_LD(R1, R3, BASELINE_OFFSET),    // R1 = baseline
-        I_SUBR(R2, R0, R1),               // R2 = diff
-        I_LD(R1, R3, THRESHOLD_OFFSET),   // R1 = threshold
-        M_BGE(1, R2, R1),                 // if diff >= threshold goto wake
+        I_SUBR(R0, R2, R1),               // R0 = raw - baseline
+        I_SUBR(R1, R1, R2),               // R1 = baseline - raw
+        I_MAX(R0, R0, R1),                // R0 = abs(diff)
+        I_BGE(1, threshold_),             // if abs(diff) >= threshold goto wake
         M_BX(2),                          // else skip wake
         M_LABEL(1),
             I_WAKE(),                       // wake CPU
-            I_ST(R0, R3, BASELINE_OFFSET),  // update baseline
+            I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
         M_LABEL(2),
-        I_HALT()
+        I_HALT()                          // halt
     };
 
     // Microseconds to delay between halt and wake states
