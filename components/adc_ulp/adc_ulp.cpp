@@ -107,21 +107,23 @@ void ADCULPSensor::setup() {
             I_HALT()                        // halt
     };
 
-    // Microseconds to delay between ULP halt and wake states
-    esp_err_t r = ulp_set_wakeup_period(0, 100 * 1000);
-    if (r != ESP_OK) {
-        ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
-        this->mark_failed();
-        return;
-    }
-    // Load and start ULP program
+    // Load ULP program into RTC memory
     size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
-    r = ulp_process_macros_and_load(0, ulp_prog, &size);
+    esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
         this->mark_failed();
         return;
     }
+
+    // Microseconds to delay between ULP halt and wake states
+    r = ulp_set_wakeup_period(0, 100 * 1000);
+    if (r != ESP_OK) {
+        ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
+        this->mark_failed();
+        return;
+    }
+    // Start ULP program
     r = ulp_run(0);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_run failed: %d", r);
