@@ -8,6 +8,7 @@
 #include "esphome/core/gpio.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_sleep.h"
+#include "esphome/core/util.h"
 
 namespace esphome {
 namespace adc_ulp {
@@ -114,8 +115,7 @@ void ADCULPSensor::setup() {
             return;
         }
         ESP_LOGI(TAG, "First power on, init ULP completed...");
-        this->setup_flags_.init_complete = true;
-        dump_config();
+        // dump_config();
     }
     else {
         // Publish only on wakeup from ULP
@@ -129,6 +129,48 @@ void ADCULPSensor::setup() {
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
+
+    this->setup_flags_.init_complete = true;
+
+}
+
+void ADCULPSensor::loop() {
+
+    // // Wait for WIFI so the published value is forwarded
+    // bool remote_timed_out = false;
+    // const int remote_wait_ms = 2000;
+    // unsigned long start = millis();
+    // while (!remote_is_connected() && !remote_timed_out) {
+    //     ESP_LOGI(TAG, "Waiting for connection to remote...");
+    //     delay(1000);
+    //     remote_timed_out = millis() - start > remote_wait_ms;
+    // }
+    // if(remote_timed_out) {
+    //     ESP_LOGI(TAG, "Timed out while waiting for remote connection, published value will not be sent");
+    // }
+
+    // Wait for remote connection so the published value is sent
+    static unsigned long t0 = 0, last = 0;
+    static bool gave_up = false;
+    const int wait_ms = 5000, log_ms = 1000;
+    if(t0 == 0) {
+        ESP_LOGI(TAG, "Wait %d ms for remote to connect...", wait_ms);
+    }
+    if (!remote_is_connected() && !gave_up) {
+        if (!t0) t0 = millis();
+        if (millis() - last >= log_ms) { ESP_LOGI(TAG, "Waiting for connection to remote..."); last = millis(); }
+        if (millis() - t0 > wait_ms) { gave_up = true; }
+        return;
+    }
+    if(gave_up) {
+        ESP_LOGI(TAG, "Timeout while waiting for remote");
+    }
+    else {
+        ESP_LOGI(TAG, "Remote connected, delaying 200ms to send published values...");
+        delay(200);
+    }
+    t0 = 0;  // connected: reset timeout state
+    gave_up = false;
 
     // Microseconds to delay between ULP halt and wake states
     esp_err_t r = ulp_set_wakeup_period(0, update_interval_ms_ * 1000);
@@ -161,11 +203,6 @@ void ADCULPSensor::setup() {
     // Enter sleep
     esp_deep_sleep_start();
 
-
-}
-
-void ADCULPSensor::loop() {
-    // Do nothing since we sleep before we get here
 }
 
 
