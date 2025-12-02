@@ -84,8 +84,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         InternalGPIOPin *pin_;
         uint32_t update_interval_ms_{1000};  // default 1s
         float threshold_{2};  // Difference threshold for wake-up, volt or raw depending on output_raw_
-        uint32_t threshold_raw_upward_;
-        uint32_t threshold_raw_downward_;
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
         adc_cali_handle_t calibration_handle_{nullptr};

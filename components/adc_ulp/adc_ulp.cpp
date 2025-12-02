@@ -177,9 +177,6 @@ void ADCULPSensor::setup() {
     }
 
     init_raw_thresholds();
-    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_raw_upward_;
-    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_raw_downward_;
-
     this->setup_flags_.init_complete = true;
 
     // Debug print
@@ -372,21 +369,20 @@ float ADCULPSensor::convert_fixed_attenuation_(uint32_t raw_value) {
 
 void ADCULPSensor::init_raw_thresholds() {
     if (this->output_raw_) {
-        this->threshold_raw_downward_ = this->threshold_;
-        this->threshold_raw_upward_ = this->threshold_;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_;
         return;
     }
 
     uint32_t baseline = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
     if(baseline > 4095) {
         // Initial baseline is set higher to trigger first measure so any threshold will work
-        this->threshold_raw_downward_ = 10;
-        this->threshold_raw_upward_ = 10;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = 10;
+        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = 10;
     }
 
-
-    this->threshold_raw_downward_ = this->threshold_;
-    this->threshold_raw_upward_ = this->threshold_;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_;
 }
 
 uint32_t ADCULPSensor::voltage_to_raw(float target_v) {
