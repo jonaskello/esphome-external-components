@@ -130,7 +130,7 @@ void ADCULPSensor::setup() {
         uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
         auto converted_value = convert_fixed_attenuation_(actual_measure);
         publish_state(converted_value);
-        ESP_LOGI(TAG, "Published ADC value: %u", converted_value);
+        ESP_LOGI(TAG, "Published ADC value: %f", converted_value);
     }
 
 
