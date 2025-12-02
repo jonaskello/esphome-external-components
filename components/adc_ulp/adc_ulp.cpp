@@ -23,6 +23,8 @@ static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 #define ARM_OFFSET         1
 #define DEBUG1_OFFSET      2
 #define DEBUG2_OFFSET      3
+#define THRESHOLD_UP_OFFSET   4
+#define THRESHOLD_DOWN_OFFSET 5
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
     switch (attenuation) {
@@ -78,6 +80,46 @@ void ADCULPSensor::setup() {
         RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] = 2;
 
         // Define ULP program
+        const ulp_insn_t ulp_prog2[] = {
+
+            // Use R3 as data pointer in the whole program
+            I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
+
+            // Check ARM flag so we don't measure values when the CPU is awake
+            I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
+            M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
+
+            // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
+            // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
+
+            // Run real program when armed
+            // Read the ADC
+            I_ADC(R2, 0, (uint32_t)channel_),  // R2 = measured raw ADC
+            // Check upward threshold
+            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+            I_SUBR(R0, R2, R1),                // R0 = measured - baseline (absolute delta relative to baseline)
+            I_LD(R1, R3, THRESHOLD_UP_OFFSET), // R1 = upward threshold
+            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+            M_BGE(1, 0),                       // if R0 (margin) >= 0 goto wake
+            // Check downward threshold
+            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+            I_SUBR(R0, R1, R2),                // R0 = baseline - measured (absolute delta relative to baseline)
+            I_LD(R1, R3, THRESHOLD_DOWN_OFFSET), // R1 = downward threshold
+            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+            M_BGE(1, 0),                       // if R0 (margin) >= 0 goto wake
+            // Skip to end and do not wake
+            M_BX(2),                           // else skip wake
+            // Wakeup label
+            M_LABEL(1),
+                I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+                I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
+                I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
+                I_WAKE(),                       // wake CPU
+            M_LABEL(2),
+                I_HALT()                        // halt
+        };
+
+       // Define ULP program
         const ulp_insn_t ulp_prog[] = {
 
             // Use R3 as data pointer in the whole program
@@ -106,6 +148,7 @@ void ADCULPSensor::setup() {
                 I_HALT()                        // halt
         };
 
+
         // Load ULP program into RTC memory
         size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
         esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
@@ -133,6 +176,9 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "Published ADC value: %f", converted_value);
     }
 
+    init_raw_thresholds();
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_raw_upward_;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_raw_downward_;
 
     this->setup_flags_.init_complete = true;
 
@@ -140,6 +186,8 @@ void ADCULPSensor::setup() {
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "THRESHOLD_UP_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] & 0xFFFF);
+    ESP_LOGI(TAG, "THRESHOLD_DOWN_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] & 0xFFFF);
 
 }
 
@@ -223,7 +271,7 @@ void ADCULPSensor::dump_config() {
     ESP_LOGCONFIG(TAG,
                 "  Channel:       %d\n"
                 "  Unit:          ADC1\n"
-                "  Threshold:     %d\n"
+                "  Threshold:     %.2f\n"
                 "  Attenuation:   %s\n",
                 this->channel_, this->threshold_, LOG_STR_ARG(attenuation_to_str(this->attenuation_)));
 
@@ -304,24 +352,80 @@ float ADCULPSensor::convert_fixed_attenuation_(uint32_t raw_value) {
         int voltage_mv;
         esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, raw_value, &voltage_mv);
         if (err == ESP_OK) {
-        return voltage_mv / 1000.0f;
+            return voltage_mv / 1000.0f;
         } else {
-        ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
-        if (this->calibration_handle_ != nullptr) {
-    #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-        USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
-            adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
-    #else   // Other ESP32 variants use line fitting calibration
-            adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
-    #endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
-            this->calibration_handle_ = nullptr;
-        }
+            ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
+            if (this->calibration_handle_ != nullptr) {
+            #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+                USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+                adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
+            #else   // Other ESP32 variants use line fitting calibration
+                adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
+            #endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+                this->calibration_handle_ = nullptr;
+            }
         }
     }
 
     return raw_value * 3.3f / 4095.0f;
 }
 
+void ADCULPSensor::init_raw_thresholds() {
+    if (this->output_raw_) {
+        this->threshold_raw_downward_ = this->threshold_;
+        this->threshold_raw_upward_ = this->threshold_;
+        return;
+    }
+
+    uint32_t baseline = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
+    if(baseline > 4095) {
+        // Initial baseline is set higher to trigger first measure so any threshold will work
+        this->threshold_raw_downward_ = 10;
+        this->threshold_raw_upward_ = 10;
+    }
+
+
+    this->threshold_raw_downward_ = this->threshold_;
+    this->threshold_raw_upward_ = this->threshold_;
+}
+
+uint32_t ADCULPSensor::voltage_to_raw(float target_v) {
+    if (this->calibration_handle_ != nullptr) {
+        int lo = 0, hi = 4095, ans = -1;  // default to -1
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            int mv;
+            esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, mid, &mv);
+            if (err != ESP_OK) {
+                // Calibration failed
+                ans = -1;
+                ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
+                if (this->calibration_handle_ != nullptr) {
+                #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+                    USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+                    adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
+                #else   // Other ESP32 variants use line fitting calibration
+                    adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
+                #endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+                    this->calibration_handle_ = nullptr;
+                }
+                break;
+            }
+            float v = mv / 1000.0f;
+            ans = mid;
+            if (v < target_v) lo = mid + 1;
+            else hi = mid - 1;
+        }
+        // If calibration success return, otherwise fall through to fallback
+        if(ans != -1) {
+            return ans; 
+        }
+    }
+
+    // Fallback
+    int raw = static_cast<uint32_t>(target_v / 3.3f * 4095.0f);
+    return raw < 0 ? 0 : (raw > 4095 ? 4095 : raw);
+}
 
 }  // namespace adc_ulp
 }  // namespace esphome
