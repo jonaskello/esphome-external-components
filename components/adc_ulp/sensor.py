@@ -44,6 +44,8 @@ def validate_config(config):
     )
     if sdk_opts.get("CONFIG_ULP_COPROC_ENABLED") != "y":
         raise cv.Invalid("ULP coprocessor must be enabled via sdkconfig_options in YAML (CONFIG_ULP_COPROC_ENABLED=y)")
+    if sdk_opts.get("CONFIG_ULP_COPROC_TYPE_FSM") != "y":
+        raise cv.Invalid("ULP coprocessor must be enabled via sdkconfig_options in YAML (CONFIG_ULP_COPROC_TYPE_FSM=y)")
 
     # If threshold is set, check unit depending on output_raw
     if CONF_THRESHOLD in config:

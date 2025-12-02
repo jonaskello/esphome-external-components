@@ -59,7 +59,7 @@ void ADCULPSensor::setup() {
         esp_err_t err_unit = adc_oneshot_new_unit(&init_cfg, &adc1_handle);
         if (err_unit != ESP_OK) {
             ESP_LOGE(TAG, "Error initializing ADC1: %d", err_unit);
-            this->mark_failed();
+            this->mark_failed("Error initializing ADC1");
             return;
         }
         this->setup_flags_.handle_init_complete = true;
@@ -68,8 +68,8 @@ void ADCULPSensor::setup() {
         adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
         esp_err_t err_channel = adc_oneshot_config_channel(adc1_handle, channel_, &chan_cfg);
         if (err_channel != ESP_OK) {
-            ESP_LOGE(TAG, "Error configuring channel: %d", err_channel);
-            this->mark_failed();
+            ESP_LOGE(TAG, "Error configuring ADC channel: %d", err_channel);
+            this->mark_failed("Error configuring ADC channel");
             return;
         }
         this->setup_flags_.config_complete = true;
@@ -124,47 +124,18 @@ void ADCULPSensor::setup() {
             M_LABEL(2),
                 I_HALT()                        // halt
         };
-/*
-       // Define ULP program
-        const ulp_insn_t ulp_prog2[] = {
 
-            // Use R3 as data pointer in the whole program
-            I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
-
-            // Check ARM flag so we don't measure values when the CPU is awake
-            I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
-            M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
-
-            // Run real program when armed
-            I_ADC(R2, 0, (uint32_t)channel_),  // R2 = raw ADC
-            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-            I_SUBR(R0, R2, R1),                // R0 = raw - baseline
-            // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
-            // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
-            M_BGE(1, threshold_),              // if diff >= threshold goto wake
-            I_SUBR(R0, R1, R2),                // R0 = baseline - raw
-            M_BGE(1, threshold_),              // if diff >= threshold goto wake
-            M_BX(2),                           // else skip wake
-            M_LABEL(1),
-                I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
-                I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
-                I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
-                I_WAKE(),                       // wake CPU
-            M_LABEL(2),
-                I_HALT()                        // halt
-        };
-*/
         // Load ULP program into RTC memory
         size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
         if(size > DATA_BASE_SLOT) {
             ESP_LOGE(TAG, "ULP program larger than DATA_BASE_SLOT");
-            this->mark_failed();
+            this->mark_failed("ULP program larger than DATA_BASE_SLOT");
             return;
         }
         esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
         if (r != ESP_OK) {
             ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
-            this->mark_failed();
+            this->mark_failed("ulp_process_macros_and_load failed");
             return;
         }
         ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
@@ -194,17 +165,12 @@ void ADCULPSensor::setup() {
     ESP_LOGI(TAG, "THRESHOLD_UP_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "THRESHOLD_DOWN_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] & 0xFFFF);
 
-    ESP_LOGI(TAG, "DEBUG1_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF));
-    ESP_LOGI(TAG, "DEBUG2_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF));
-    ESP_LOGI(TAG, "DEBUG3_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET] & 0xFFFF));
-    ESP_LOGI(TAG, "DEBUG4_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG4_OFFSET] & 0xFFFF));
-    uint32_t debug3 = RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET];
-    ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)",
-            debug3,
-            (debug3 >> 21) & 0x7FF,
-            (debug3 >> 16) & 0x3,
-            (int16_t)(debug3 & 0xFFFF));
-
+    // ESP_LOGI(TAG, "DEBUG1_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF));
+    // ESP_LOGI(TAG, "DEBUG2_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF));
+    // ESP_LOGI(TAG, "DEBUG3_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET] & 0xFFFF));
+    // ESP_LOGI(TAG, "DEBUG4_OFFSET: %d", (int16_t)(RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG4_OFFSET] & 0xFFFF));
+    // uint32_t debug3 = RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET];
+    // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 
 }
 
@@ -272,8 +238,8 @@ void ADCULPSensor::loop() {
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
     // Wait for log
-    fflush(stdout);
-    uart_wait_tx_idle_polling(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
+    // fflush(stdout);
+    // uart_wait_tx_idle_polling(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
 
     // Tell ULP to start making measurements
     RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
@@ -397,16 +363,29 @@ void ADCULPSensor::init_raw_thresholds() {
         threshold_down = this->threshold_;
     } else {
         // Convert volts → raw counts relative to baseline (because attenuation curve is not linear)
-        uint32_t baseline = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF;
-        if (baseline > 4095) {
+        uint32_t baseline_raw = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF;
+        if (baseline_raw > 4095) {
             // Initial bootstrap: force a wake on first measure
             threshold_up   = 10;
             threshold_down = 10;
         } else {
-            // threshold_up   = voltage_to_raw(this->threshold_);
-            // threshold_down = voltage_to_raw(this->threshold_);
-            threshold_up   = this->threshold_;
-            threshold_down = this->threshold_;
+            // Convert current baseline to voltage
+            float baseline_v = convert_fixed_attenuation_(baseline_raw);
+
+            // Upward: target = baseline_v + threshold_V → raw_target_up
+            float target_up_v = baseline_v + this->threshold_;
+            uint16_t raw_target_up = voltage_to_raw(target_up_v);
+            threshold_up = (raw_target_up > baseline_raw) ? (raw_target_up - baseline_raw) : 0;
+
+            // Downward: target = baseline_v - threshold_V → raw_target_down
+            float target_down_v = baseline_v - this->threshold_;
+            if (target_down_v < 0.0f) target_down_v = 0.0f; // floor at 0 V
+            uint16_t raw_target_down = voltage_to_raw(target_down_v);
+            threshold_down = (baseline_raw > raw_target_down) ? (baseline_raw - raw_target_down) : 0;
+
+            // Enforce minimum non-zero thresholds to "sleep on equality"
+            if (threshold_up == 0 && this->threshold_ > 0) threshold_up = 1;
+            if (threshold_down == 0 && this->threshold_ > 0) threshold_down = 1;
         }
     }
 
