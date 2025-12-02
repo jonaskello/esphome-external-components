@@ -368,21 +368,31 @@ float ADCULPSensor::convert_fixed_attenuation_(uint32_t raw_value) {
 }
 
 void ADCULPSensor::init_raw_thresholds() {
+    uint32_t threshold_up   = 0;
+    uint32_t threshold_down = 0;
+
     if (this->output_raw_) {
-        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_;
-        return;
+        // Threshold is already in raw counts
+        threshold_up   = this->threshold_;
+        threshold_down = this->threshold_;
+    } else {
+        // Convert volts → raw counts
+        uint32_t baseline = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
+        if (baseline > 4095) {
+            // Initial bootstrap: force a wake on first measure
+            threshold_up   = 10;
+            threshold_down = 10;
+        } else {
+            // threshold_up   = voltage_to_raw(this->threshold_);
+            // threshold_down = voltage_to_raw(this->threshold_);
+            threshold_up   = this->threshold_;
+            threshold_down = this->threshold_;
+        }
     }
 
-    uint32_t baseline = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
-    if(baseline > 4095) {
-        // Initial baseline is set higher to trigger first measure so any threshold will work
-        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = 10;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = 10;
-    }
-
-    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET] = this->threshold_;
-    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = this->threshold_;
+    // Finally transfer to RTC slow memory
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_UP_OFFSET]   = threshold_up & 0xFFFF;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + THRESHOLD_DOWN_OFFSET] = threshold_down & 0xFFFF;
 }
 
 uint32_t ADCULPSensor::voltage_to_raw(float target_v) {
