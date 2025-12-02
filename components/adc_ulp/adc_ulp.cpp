@@ -118,6 +118,10 @@ void ADCULPSensor::setup() {
         // dump_config();
     }
     else {
+        // This is already setup
+        this->setup_flags_.handle_init_complete = true;
+        this->setup_flags_.config_complete = true;
+
         // Publish only on wakeup from ULP
         uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
         uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
@@ -125,12 +129,15 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
     }
 
+    // We always need to init calibration handle
+    setup_calibration_();
+
+    this->setup_flags_.init_complete = true;
+
     // Debug print
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG1_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] & 0xFFFF);
     ESP_LOGI(TAG, "DEBUG2_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] & 0xFFFF);
-
-    this->setup_flags_.init_complete = true;
 
 }
 
@@ -233,6 +240,86 @@ float ADCULPSensor::sample() {
     // TODO: Fix to return ULP value
     return 0;
 }
+
+void ADCULPSensor::setup_calibration_() {
+
+    // Initialize ADC calibration
+    if (this->calibration_handle_ == nullptr) {
+        adc_cali_handle_t handle = nullptr;
+
+    #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+        USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+        // RISC-V variants and S3 use curve fitting calibration
+        adc_cali_curve_fitting_config_t cali_config = {};  // Zero initialize first
+    #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+        cali_config.chan = this->channel_;
+    #endif  // ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+        // cali_config.unit_id = this->adc_unit_;
+        cali_config.unit_id = ADC_UNIT_1;
+        cali_config.atten = this->attenuation_;
+        cali_config.bitwidth = ADC_BITWIDTH_DEFAULT;
+
+        esp_err_t err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+        if (err == ESP_OK) {
+            this->calibration_handle_ = handle;
+            this->setup_flags_.calibration_complete = true;
+            ESP_LOGV(TAG, "Using curve fitting calibration");
+        } else {
+            ESP_LOGW(TAG, "Curve fitting calibration failed with error %d, will use uncalibrated readings", err);
+            this->setup_flags_.calibration_complete = false;
+        }
+    #else  // Other ESP32 variants use line fitting calibration
+        adc_cali_line_fitting_config_t cali_config = {
+        // .unit_id = this->adc_unit_,
+        .unit_id = ADC_UNIT_1,
+        .atten = this->attenuation_,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    #if !defined(USE_ESP32_VARIANT_ESP32S2)
+        .default_vref = 1100,  // Default reference voltage in mV
+    #endif  // !defined(USE_ESP32_VARIANT_ESP32S2)
+        };
+        esp_err_t err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+        if (err == ESP_OK) {
+            this->calibration_handle_ = handle;
+            this->setup_flags_.calibration_complete = true;
+            ESP_LOGV(TAG, "Using line fitting calibration");
+        } else {
+            ESP_LOGW(TAG, "Line fitting calibration failed with error %d, will use uncalibrated readings", err);
+            this->setup_flags_.calibration_complete = false;
+        }
+    #endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+    }
+
+}
+
+float ADCULPSensor::convert_fixed_attenuation_(uint32_t final_value) {
+
+    if (this->output_raw_) {
+        return final_value;
+    }
+
+    if (this->calibration_handle_ != nullptr) {
+        int voltage_mv;
+        esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, final_value, &voltage_mv);
+        if (err == ESP_OK) {
+        return voltage_mv / 1000.0f;
+        } else {
+        ESP_LOGW(TAG, "ADC calibration conversion failed with error %d, disabling calibration", err);
+        if (this->calibration_handle_ != nullptr) {
+    #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
+        USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4
+            adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
+    #else   // Other ESP32 variants use line fitting calibration
+            adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
+    #endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32S3 || ESP32H2
+            this->calibration_handle_ = nullptr;
+        }
+        }
+    }
+
+    return final_value * 3.3f / 4095.0f;
+}
+
 
 }  // namespace adc_ulp
 }  // namespace esphome

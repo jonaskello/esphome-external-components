@@ -76,13 +76,15 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         void set_threshold(uint16_t threshold) { threshold_ = threshold; }
 
     protected:
+        void setup_calibration_();
+        float convert_fixed_attenuation_(uint32_t final_value);
         bool output_raw_{false};
         InternalGPIOPin *pin_;
-
         uint32_t update_interval_ms_{1000};  // default 1s
         uint16_t threshold_{100};  // ADC difference threshold for wake-up
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
+        adc_cali_handle_t calibration_handle_{nullptr};
         struct SetupFlags {
             uint8_t init_complete : 1;
             uint8_t config_complete : 1;
