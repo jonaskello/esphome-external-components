@@ -122,15 +122,17 @@ void ADCULPSensor::setup() {
         this->setup_flags_.handle_init_complete = true;
         this->setup_flags_.config_complete = true;
 
+        // Calibration handle only used in this branch
+        setup_calibration_();
+
         // Publish only on wakeup from ULP
         uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
         uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
-        publish_state(actual_measure);
-        ESP_LOGI(TAG, "Published ADC value: %u", actual_measure);
+        auto converted_value = convert_fixed_attenuation_(actual_measure);
+        publish_state(converted_value);
+        ESP_LOGI(TAG, "Published ADC value: %u", converted_value);
     }
 
-    // We always need to init calibration handle
-    setup_calibration_();
 
     this->setup_flags_.init_complete = true;
 
@@ -292,15 +294,15 @@ void ADCULPSensor::setup_calibration_() {
 
 }
 
-float ADCULPSensor::convert_fixed_attenuation_(uint32_t final_value) {
+float ADCULPSensor::convert_fixed_attenuation_(uint32_t raw_value) {
 
     if (this->output_raw_) {
-        return final_value;
+        return raw_value;
     }
 
     if (this->calibration_handle_ != nullptr) {
         int voltage_mv;
-        esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, final_value, &voltage_mv);
+        esp_err_t err = adc_cali_raw_to_voltage(this->calibration_handle_, raw_value, &voltage_mv);
         if (err == ESP_OK) {
         return voltage_mv / 1000.0f;
         } else {
@@ -317,7 +319,7 @@ float ADCULPSensor::convert_fixed_attenuation_(uint32_t final_value) {
         }
     }
 
-    return final_value * 3.3f / 4095.0f;
+    return raw_value * 3.3f / 4095.0f;
 }
 
 
