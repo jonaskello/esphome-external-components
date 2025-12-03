@@ -151,9 +151,6 @@ void ADCULPSensor::setup() {
         this->setup_flags_.handle_init_complete = true;
         this->setup_flags_.config_complete = true;
 
-        // Calibration handle only used in this branch
-        setup_calibration_();
-
         // Publish only on wakeup from ULP
         uint32_t raw_measure = RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET];
         uint16_t actual_measure = raw_measure & 0x0FFF; // Only 12 bits are used
@@ -162,6 +159,8 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "Published ADC value: %f", converted_value);
     }
 
+    // Init calibration of raw->voltage and convert threshold from voltage to raw
+    setup_calibration_();
     init_raw_thresholds();
     this->setup_flags_.init_complete = true;
 
