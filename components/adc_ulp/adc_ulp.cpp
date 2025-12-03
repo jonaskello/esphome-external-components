@@ -91,47 +91,43 @@ void ADCULPSensor::setup() {
 
         // Define ULP program
         const ulp_insn_t ulp_prog[] = {
+            // Use R3 as data pointer in the whole program
+            I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
 
-                // I_WAKE(),                       // wake CPU
+            // Check ARM flag so we don't measure values when the CPU is awake
+            I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
+            M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
+
+            // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
+            // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
+
+            // Run real program when armed
+            // Read the ADC
+            I_ADC(R2, 0, (uint32_t)channel_),  // R2 = measured raw ADC
+            // Check upward threshold
+            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+            I_SUBR(R0, R2, R1),                // R0 = measured - baseline (delta relative to baseline)
+            I_LD(R1, R3, THRESHOLD_UP_OFFSET), // R1 = upward threshold
+            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+            I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
+            M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
+            // Check downward threshold
+            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+            I_SUBR(R0, R1, R2),                // R0 = baseline - measured (absolute delta relative to baseline)
+            I_LD(R1, R3, THRESHOLD_DOWN_OFFSET), // R1 = downward threshold
+            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+            I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
+            M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
+            // Skip to end and do not wake
+            M_BX(2),                           // else skip wake
+            // Wakeup label
+            M_LABEL(1),
+                I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+                I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
+                I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
+                I_WAKE(),                       // wake CPU
+            M_LABEL(2),
                 I_HALT()                        // halt
-
-            // // Use R3 as data pointer in the whole program
-            // I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
-
-            // // Check ARM flag so we don't measure values when the CPU is awake
-            // I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
-            // M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
-
-            // // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
-            // // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
-
-            // // Run real program when armed
-            // // Read the ADC
-            // I_ADC(R2, 0, (uint32_t)channel_),  // R2 = measured raw ADC
-            // // Check upward threshold
-            // I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-            // I_SUBR(R0, R2, R1),                // R0 = measured - baseline (delta relative to baseline)
-            // I_LD(R1, R3, THRESHOLD_UP_OFFSET), // R1 = upward threshold
-            // I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
-            // I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
-            // M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
-            // // Check downward threshold
-            // I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-            // I_SUBR(R0, R1, R2),                // R0 = baseline - measured (absolute delta relative to baseline)
-            // I_LD(R1, R3, THRESHOLD_DOWN_OFFSET), // R1 = downward threshold
-            // I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
-            // I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
-            // M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
-            // // Skip to end and do not wake
-            // // M_BX(2),                           // else skip wake
-            // // Wakeup label
-            // M_LABEL(1),
-            //     I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
-            //     I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
-            //     I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
-            //     I_WAKE(),                       // wake CPU
-            // M_LABEL(2),
-            //     I_HALT()                        // halt
         };
 
         // Load ULP program into RTC memory
