@@ -159,10 +159,10 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "Published ADC value: %f", converted_value);
     }
 
-    // Init calibration of raw->voltage and convert threshold from voltage to raw
+    // Setup calibration of raw->voltage
     setup_calibration_();
-    init_raw_thresholds();
-    this->setup_flags_.init_complete = true;
+    // Need to convert threshold on every wakeup becuase it is relative to current baseline
+    update_raw_thresholds();
 
     // Debug print
     ESP_LOGI(TAG, "BASELINE_OFFSET: %u", RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] & 0xFFFF);
@@ -176,6 +176,7 @@ void ADCULPSensor::setup() {
     // uint32_t debug3 = RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET];
     // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 
+    this->setup_flags_.init_complete = true;
 }
 
 float ADCULPSensor::get_setup_priority() const { return setup_priority::LATE; }
@@ -357,7 +358,7 @@ float ADCULPSensor::convert_fixed_attenuation_(uint32_t raw_value) {
     return raw_value * 3.3f / 4095.0f;
 }
 
-void ADCULPSensor::init_raw_thresholds() {
+void ADCULPSensor::update_raw_thresholds() {
     uint32_t threshold_up   = 0;
     uint32_t threshold_down = 0;
 

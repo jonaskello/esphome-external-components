@@ -79,7 +79,7 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         void setup_calibration_();
         float convert_fixed_attenuation_(uint32_t final_value);
         uint32_t voltage_to_raw(float target_v);
-        void init_raw_thresholds();
+        void update_raw_thresholds();
         bool output_raw_{false};
         InternalGPIOPin *pin_;
         uint32_t update_interval_ms_{1000};  // default 1s
