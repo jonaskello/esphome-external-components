@@ -8,6 +8,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_sleep.h"
 #include "esphome/core/util.h"
+#include "ulp_adc.h"
 #if USE_ESP32_VARIANT_ESP32
     #include "esp32/ulp.h"
 #elif USE_ESP32_VARIANT_ESP32S3
@@ -60,24 +61,20 @@ void ADCULPSensor::setup() {
         ESP_LOGI(TAG, "First power on, init ULP...");
 
         // Init ADC unit for use with ULP
-        adc_oneshot_unit_handle_t adc1_handle;
-        adc_oneshot_unit_init_cfg_t init_cfg = { .unit_id = ADC_UNIT_1, .ulp_mode = ADC_ULP_MODE_FSM };
-        esp_err_t err_unit = adc_oneshot_new_unit(&init_cfg, &adc1_handle);
-        if (err_unit != ESP_OK) {
-            ESP_LOGE(TAG, "Error initializing ADC1: %d", err_unit);
-            this->mark_failed("Error initializing ADC1");
+        ulp_adc_cfg_t cfg = {
+            .adc_n    = ADC_UNIT_1,
+            .channel  = channel_,
+            .atten    = ADC_ATTEN_DB_12,
+            .width    = ADC_BITWIDTH_12,
+            .ulp_mode = ADC_ULP_MODE_FSM,
+        };
+        esp_err_t err_ulp_adc_init = ulp_adc_init(&cfg);
+        if (err_ulp_adc_init != ESP_OK) {
+            ESP_LOGE(TAG, "Error configuring ADC for ULP: %d", err_ulp_adc_init);
+            this->mark_failed("Error configuring ADC for ULP");
             return;
         }
         this->setup_flags_.handle_init_complete = true;
-
-        // Init ADC channel for use with ULP
-        adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
-        esp_err_t err_channel = adc_oneshot_config_channel(adc1_handle, channel_, &chan_cfg);
-        if (err_channel != ESP_OK) {
-            ESP_LOGE(TAG, "Error configuring ADC channel: %d", err_channel);
-            this->mark_failed("Error configuring ADC channel");
-            return;
-        }
         this->setup_flags_.config_complete = true;
 
         // Set baseline out of range baseline to trigger first value publish
@@ -144,7 +141,6 @@ void ADCULPSensor::setup() {
             return;
         }
         ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
-        // dump_config();
     }
     else {
         // This is already setup
