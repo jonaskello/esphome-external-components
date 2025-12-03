@@ -37,7 +37,7 @@ mqtt:
   will_message:
 
 external_components:
-  - source: ./jonaskello/esphome-external-components/components
+  - source: github://jonaskello/esphome-external-components@main
 
 sensor:
   - platform: adc_ulp
