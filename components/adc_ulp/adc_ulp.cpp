@@ -2,13 +2,19 @@
 
 #include "adc_ulp.h"
 #include "esphome/core/log.h"
-#include "esp32/ulp.h"
 #include "driver/rtc_io.h"
 #include "esphome.h"
 #include "esphome/core/gpio.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_sleep.h"
 #include "esphome/core/util.h"
+#if USE_ESP32_VARIANT_ESP32
+    #include "esp32/ulp.h"
+#elif USE_ESP32_VARIANT_ESP32S3
+    #include "esp32s3/ulp.h"
+#else
+    #error "Unsupported target: add ULP header include here"
+#endif
 
 namespace esphome {
 namespace adc_ulp {
