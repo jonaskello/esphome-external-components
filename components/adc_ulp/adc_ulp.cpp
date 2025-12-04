@@ -52,8 +52,6 @@ const LogString *attenuation_to_str(adc_atten_t attenuation) {
 
 void ADCULPSensor::setup() {
 
-    // Stop any previously running ULP program
-    ulp_timer_stop();
     // Setup calibration of raw->voltage
     setup_calibration_();
     // Need to convert threshold on every wakeup becuase it is relative to current baseline
@@ -119,15 +117,8 @@ void ADCULPSensor::loop() {
     t0 = 0;  
     gave_up = false;
 
-    // Microseconds to delay between ULP halt and wake states
-    esp_err_t r = ulp_set_wakeup_period(0, update_interval_ms_ * 1000);
-    if (r != ESP_OK) {
-        ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
-        this->mark_failed();
-        return;
-    }
     // Start ULP program
-    r = ulp_run(0);
+    esp_err_t r = ulp_run(0);
     if (r != ESP_OK) {
         ESP_LOGE(TAG, "ulp_run failed: %d", r);
         this->mark_failed();
@@ -249,7 +240,17 @@ esp_err_t ADCULPSensor::init_ulp_program() {
         ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
         return r;
     }
+
+    // Microseconds to delay between ULP halt and wake states
+    r = ulp_set_wakeup_period(0, update_interval_ms_ * 1000);
+    if (r != ESP_OK) {
+        ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %d", r);
+        this->mark_failed();
+        return r;
+    }
+
     ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
+
     return ESP_OK;
 }
 
