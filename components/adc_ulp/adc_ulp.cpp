@@ -103,7 +103,7 @@ void ADCULPSensor::loop() {
                 state_start = millis();
                 last_log   = millis();
             } else {
-                if (millis() - last_log >= 1000) { (millis() - state_start) / 1000; last_log = millis(); }
+                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for remote... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
                 if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for remote"); state = State::FAIL; }
             }
             break;
@@ -196,7 +196,7 @@ esp_err_t ADCULPSensor::init_ulp_program() {
     ulp_adc_cfg_t cfg = {
         .adc_n    = ADC_UNIT_1,
         .channel  = channel_,
-        .atten    = ADC_ATTEN_DB_12,
+        .atten    = attenuation_,
         .width    = ADC_BITWIDTH_12,
         .ulp_mode = ADC_ULP_MODE_FSM,
     };
