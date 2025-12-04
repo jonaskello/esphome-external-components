@@ -57,90 +57,12 @@ void ADCULPSensor::setup() {
 
     // If this is the first power on (not wakeup), then initialize the ULP 
     if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
-
-        ESP_LOGI(TAG, "First power on, init ULP...");
-
-        // Init ADC unit for use with ULP
-        ulp_adc_cfg_t cfg = {
-            .adc_n    = ADC_UNIT_1,
-            .channel  = channel_,
-            .atten    = ADC_ATTEN_DB_12,
-            .width    = ADC_BITWIDTH_12,
-            .ulp_mode = ADC_ULP_MODE_FSM,
-        };
-        esp_err_t err_ulp_adc_init = ulp_adc_init(&cfg);
-        if (err_ulp_adc_init != ESP_OK) {
-            ESP_LOGE(TAG, "Error configuring ADC for ULP: %d", err_ulp_adc_init);
-            this->mark_failed("Error configuring ADC for ULP");
-            return;
-        }
-        this->setup_flags_.handle_init_complete = true;
-        this->setup_flags_.config_complete = true;
-
-        // Set baseline out of range baseline to trigger first value publish
-        RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x7FFF;
-        // Prevent measurements when CPU is awake by setting ARM = 0
-        RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 0;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] = 1;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] = 2;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET] = 3;
-        RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG4_OFFSET] = 4;
-
-        // Define ULP program
-        const ulp_insn_t ulp_prog[] = {
-            // Use R3 as data pointer in the whole program
-            I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
-
-            // Check ARM flag so we don't measure values when the CPU is awake
-            I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
-            M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
-
-            // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
-            // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
-
-            // Run real program when armed
-            // Read the ADC
-            I_ADC(R2, 0, (uint32_t)channel_),  // R2 = measured raw ADC
-            // Check upward threshold
-            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-            I_SUBR(R0, R2, R1),                // R0 = measured - baseline (delta relative to baseline)
-            I_LD(R1, R3, THRESHOLD_UP_OFFSET), // R1 = upward threshold
-            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
-            I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
-            M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
-            // Check downward threshold
-            I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
-            I_SUBR(R0, R1, R2),                // R0 = baseline - measured (absolute delta relative to baseline)
-            I_LD(R1, R3, THRESHOLD_DOWN_OFFSET), // R1 = downward threshold
-            I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
-            I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
-            M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
-            // Skip to end and do not wake
-            M_BX(2),                           // else skip wake
-            // Wakeup label
-            M_LABEL(1),
-                I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
-                I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
-                I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
-                I_WAKE(),                       // wake CPU
-            M_LABEL(2),
-                I_HALT()                        // halt
-        };
-
-        // Load ULP program into RTC memory
-        size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
-        if(size > DATA_BASE_SLOT) {
-            ESP_LOGE(TAG, "ULP program larger than DATA_BASE_SLOT");
-            this->mark_failed("ULP program larger than DATA_BASE_SLOT");
-            return;
-        }
-        esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
+        esp_err_t r = init_ulp_program();
         if (r != ESP_OK) {
-            ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
-            this->mark_failed("ulp_process_macros_and_load failed");
+            ESP_LOGE(TAG, "init_ulp_program failed: %d", r);
+            this->mark_failed("init_ulp_program failed");
             return;
         }
-        ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
     }
     else {
         // This is already setup
@@ -173,6 +95,91 @@ void ADCULPSensor::setup() {
     // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 
     this->setup_flags_.init_complete = true;
+}
+
+esp_err_t ADCULPSensor::init_ulp_program() {
+    ESP_LOGI(TAG, "First power on, init ULP...");
+
+    // Init ADC unit for use with ULP
+    ulp_adc_cfg_t cfg = {
+        .adc_n    = ADC_UNIT_1,
+        .channel  = channel_,
+        .atten    = ADC_ATTEN_DB_12,
+        .width    = ADC_BITWIDTH_12,
+        .ulp_mode = ADC_ULP_MODE_FSM,
+    };
+    esp_err_t err_ulp_adc_init = ulp_adc_init(&cfg);
+    if (err_ulp_adc_init != ESP_OK) {
+        ESP_LOGE(TAG, "Error configuring ADC for ULP: %d", err_ulp_adc_init);
+        this->mark_failed("Error configuring ADC for ULP");
+        return err_ulp_adc_init;
+    }
+    this->setup_flags_.handle_init_complete = true;
+
+    // Set baseline out of range baseline to trigger first value publish
+    RTC_SLOW_MEM[DATA_BASE_SLOT + BASELINE_OFFSET] = 0x7FFF;
+    // Prevent measurements when CPU is awake by setting ARM = 0
+    RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 0;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG1_OFFSET] = 1;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG2_OFFSET] = 2;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG3_OFFSET] = 3;
+    RTC_SLOW_MEM[DATA_BASE_SLOT + DEBUG4_OFFSET] = 4;
+
+    // Define ULP program
+    const ulp_insn_t ulp_prog[] = {
+        // Use R3 as data pointer in the whole program
+        I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
+
+        // Check ARM flag so we don't measure values when the CPU is awake
+        I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
+        M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
+
+        // I_ST(R1, R3, DEBUG1_OFFSET),  // DEBUG
+        // I_ST(R2, R3, DEBUG2_OFFSET),  // DEBUG
+
+        // Run real program when armed
+        // Read the ADC
+        I_ADC(R2, 0, (uint32_t)channel_),  // R2 = measured raw ADC
+        // Check upward threshold
+        I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+        I_SUBR(R0, R2, R1),                // R0 = measured - baseline (delta relative to baseline)
+        I_LD(R1, R3, THRESHOLD_UP_OFFSET), // R1 = upward threshold
+        I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+        I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
+        M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
+        // Check downward threshold
+        I_LD(R1, R3, BASELINE_OFFSET),     // R1 = baseline
+        I_SUBR(R0, R1, R2),                // R0 = baseline - measured (absolute delta relative to baseline)
+        I_LD(R1, R3, THRESHOLD_DOWN_OFFSET), // R1 = downward threshold
+        I_SUBR(R0, R0, R1),                // R0 = delta - threshold (margin relative to threshold)
+        I_RSHI(R0, R0, 15),                // R0 = sign bit of R0 (0 if ≥0, 1 if negative)
+        M_BL(1, 1),                        // if signbit < 1 (i.e 0) then delta > threshold so wakeup
+        // Skip to end and do not wake
+        M_BX(2),                           // else skip wake
+        // Wakeup label
+        M_LABEL(1),
+            I_ST(R2, R3, BASELINE_OFFSET),  // update baseline with raw ADC
+            I_MOVI(R0, 0),                  // R0 = 0 to clear ARM
+            I_ST(R0, R3, ARM_OFFSET),       // clear ARM before we wake the cpu so we don't run while it is awake
+            I_WAKE(),                       // wake CPU
+        M_LABEL(2),
+            I_HALT()                        // halt
+    };
+
+    // Load ULP program into RTC memory
+    size_t size = sizeof(ulp_prog) / sizeof(ulp_insn_t);
+    if(size > DATA_BASE_SLOT) {
+        ESP_LOGE(TAG, "ULP program larger than DATA_BASE_SLOT");
+        return ESP_FAIL;
+    }
+    esp_err_t r = ulp_process_macros_and_load(0, ulp_prog, &size);
+    if (r != ESP_OK) {
+        ESP_LOGE(TAG, "ulp_process_macros_and_load failed: %d", r);
+        return r;
+    }
+    ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
+    this->setup_flags_.config_complete = true;
+    return ESP_OK;
 }
 
 float ADCULPSensor::get_setup_priority() const { return setup_priority::LATE; }

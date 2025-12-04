@@ -76,6 +76,7 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         void set_threshold(float threshold) { threshold_ = threshold; }
 
     protected:
+        esp_err_t init_ulp_program();
         void setup_calibration_();
         float convert_fixed_attenuation_(uint32_t final_value);
         uint32_t voltage_to_raw(float target_v);
