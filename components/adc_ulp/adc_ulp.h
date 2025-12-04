@@ -88,13 +88,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         adc_atten_t attenuation_{ADC_ATTEN_DB_0};
         adc_channel_t channel_{};
         adc_cali_handle_t calibration_handle_{nullptr};
-        struct SetupFlags {
-            uint8_t init_complete : 1;
-            uint8_t config_complete : 1;
-            uint8_t handle_init_complete : 1;
-            uint8_t calibration_complete : 1;
-            uint8_t reserved : 4;
-        } setup_flags_{};
 
 };
 
