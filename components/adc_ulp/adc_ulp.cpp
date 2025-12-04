@@ -112,10 +112,11 @@ void ADCULPSensor::loop() {
     }
     else {
         ESP_LOGI(TAG, "Remote connected...");
-        // const int send_delay = 500;
-        // delay(send_delay);
+        const int send_delay = 500;
+        delay(send_delay);
     }
-    t0 = 0;  // connected: reset timeout state
+    // connected: reset timeout state
+    t0 = 0;  
     gave_up = false;
 
     // Microseconds to delay between ULP halt and wake states
