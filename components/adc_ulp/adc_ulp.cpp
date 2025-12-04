@@ -118,6 +118,23 @@ void ADCULPSensor::loop() {
     t0 = 0;  
     gave_up = false;
 
+    // // Wait for MQTT messages to be sent
+    // if (mqtt::global_mqtt_client->is_connected()) {
+    //     ESP_LOGI("main", "Disconnecting MQTT before deep sleep...");
+    //     mqtt::global_mqtt_client->disable();
+
+    //     // Vänta tills disconnect är klar
+    //     while (mqtt::global_mqtt_client->is_connected()) {
+    //         App.feed_wdt();   // mata watchdog
+    //         delay(10);        // liten paus
+    //     }
+    // }
+
+    enter_sleep();
+
+}
+
+void ADCULPSensor::enter_sleep() {
     // Start ULP program
     esp_err_t r = ulp_run(0);
     if (r != ESP_OK) {
