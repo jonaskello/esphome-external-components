@@ -89,53 +89,6 @@ void ADCULPSensor::setup() {
     // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 }
 
-/*
-void ADCULPSensor::loop() {
-
-    // Wait for remote connection so the published value is sent
-    static unsigned long t0 = 0, last = 0;
-    static bool gave_up = false;
-    const int wait_ms = 80000, log_ms = 1000;
-    if(t0 == 0) {
-        ESP_LOGI(TAG, "Wait %d ms for remote to connect...", wait_ms);
-    }
-    bool remote_connected = remote_is_connected();
-    // bool remote_connected = api::global_api_server->is_connected();
-    if (!remote_connected && !gave_up) {
-        if (!t0) t0 = millis();
-        if (millis() - last >= log_ms) { last = millis(); ESP_LOGI(TAG, "Waiting for remote connection (api or mqtt)... %d", (last - t0) / 1000); }
-        if (millis() - t0 > wait_ms) { gave_up = true; }
-        return;
-    }
-    if(gave_up) {
-        ESP_LOGI(TAG, "Timeout while waiting for remote, published values will not be sent");
-    }
-    else {
-        ESP_LOGI(TAG, "Remote connected...");
-        const int send_delay = 500;
-        delay(send_delay);
-    }
-    // connected: reset timeout state
-    t0 = 0;  
-    gave_up = false;
-
-    // // Wait for MQTT messages to be sent
-    // if (mqtt::global_mqtt_client->is_connected()) {
-    //     ESP_LOGI("main", "Disconnecting MQTT before deep sleep...");
-    //     mqtt::global_mqtt_client->disable();
-
-    //     // Vänta tills disconnect är klar
-    //     while (mqtt::global_mqtt_client->is_connected()) {
-    //         App.feed_wdt();   // mata watchdog
-    //         delay(10);        // liten paus
-    //     }
-    // }
-
-    enter_sleep();
-
-}
-*/
-
 void ADCULPSensor::loop() {
     enum class State { WAIT_REMOTE, WAIT_MQTT_SEND, WAIT_MQTT_DISCONNECT, SLEEP, FAIL };
     static State state = State::WAIT_REMOTE;
@@ -173,16 +126,6 @@ void ADCULPSensor::loop() {
             break;
             
         case State::WAIT_MQTT_DISCONNECT:
-            // if (!mqtt::global_mqtt_client->is_connected()) {
-            //     ESP_LOGI(TAG, "MQTT disconnected");
-            //     state = State::SLEEP;
-            //     state_start = millis();
-            //     last_log   = millis();
-            // } else {
-            //     if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for MQTT disconnect... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
-            //     if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for MQTT disconnect"); state = State::FAIL; }
-            // }
-            // break;
             if (millis() - state_start >= 3000) {
                 ESP_LOGI(TAG, "MQTT disconnect wait done");
                 state = State::SLEEP;
