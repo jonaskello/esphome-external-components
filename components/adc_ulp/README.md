@@ -32,6 +32,7 @@ mqtt:
   username: !secret mqtt_user
   password: !secret mqtt_pass
   discovery: true
+  discovery_unique_id_generator: mac
   # https://community.home-assistant.io/t/how-to-get-last-known-value-while-sensor-is-in-deep-sleep/119665/18
   birth_message:
   will_message:
