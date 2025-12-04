@@ -132,10 +132,6 @@ void ADCULPSensor::loop() {
     // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
-    // Wait for log
-    // fflush(stdout);
-    // uart_wait_tx_idle_polling(static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM));
-
     // Tell esphome this was "successful" to not trigger safe mode
     App.run_safe_shutdown_hooks();
     // It's critical to teardown components cleanly for deep sleep to ensure
