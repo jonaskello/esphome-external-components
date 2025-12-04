@@ -125,10 +125,6 @@ void ADCULPSensor::loop() {
         return;
     }
 
-    // Enable wakeup from ULP
-    esp_sleep_enable_ulp_wakeup();
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-
     // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
@@ -138,6 +134,10 @@ void ADCULPSensor::loop() {
     // Home Assistant sees a clean disconnect instead of marking the device unavailable
     App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
     App.run_powerdown_hooks();
+
+    // Enable wakeup from ULP
+    esp_sleep_enable_ulp_wakeup();
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
     // Tell ULP to start making measurements
     RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
