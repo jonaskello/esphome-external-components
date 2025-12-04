@@ -103,13 +103,13 @@ void ADCULPSensor::loop() {
                 state_start = millis();
                 last_log   = millis();
             } else {
-                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for remote... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
+                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for remote... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
                 if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for remote"); state = State::FAIL; }
             }
             break;
 
         case State::WAIT_MQTT_SEND:
-            if (millis() - state_start >= 3000) {
+            if (millis() - state_start >= 2000) {
                 ESP_LOGI(TAG, "MQTT send wait done");
                 if (mqtt::global_mqtt_client->is_connected()) {
                     ESP_LOGI(TAG, "Disconnecting MQTT before deep sleep...");
@@ -121,18 +121,18 @@ void ADCULPSensor::loop() {
                 state_start = millis();
                 last_log   = millis();
             } else {
-                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for MQTT send... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
+                if (millis() - last_log >= 500) { ESP_LOGI(TAG, "Waiting for remote send... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
             }
             break;
             
         case State::WAIT_MQTT_DISCONNECT:
-            if (millis() - state_start >= 3000) {
+            if (millis() - state_start >= 2000) {
                 ESP_LOGI(TAG, "MQTT disconnect wait done");
                 state = State::SLEEP;
                 state_start = millis();
                 last_log   = millis();
             } else {
-                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for MQTT disconnect... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
+                if (millis() - last_log >= 500) { ESP_LOGI(TAG, "Waiting for MQTT disconnect... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
             }
             break;
 
