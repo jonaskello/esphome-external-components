@@ -89,6 +89,7 @@ void ADCULPSensor::setup() {
     // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 }
 
+/*
 void ADCULPSensor::loop() {
 
     // Wait for remote connection so the published value is sent
@@ -132,6 +133,48 @@ void ADCULPSensor::loop() {
 
     enter_sleep();
 
+}
+*/
+
+void ADCULPSensor::loop() {
+    enum class State { WAIT_REMOTE, WAIT_MQTT, SLEEP, FAIL };
+    static State state = State::WAIT_REMOTE;
+    static unsigned long state_start = 0;
+
+    switch (state) {
+        case State::WAIT_REMOTE:
+            if (remote_is_connected()) {
+                ESP_LOGI(TAG, "Remote connected");
+                state = State::WAIT_MQTT;
+                state_start = millis();
+            } else if (millis() - state_start > 80000) {
+                ESP_LOGW(TAG, "Timeout waiting for remote");
+                state = State::FAIL;
+            }
+            break;
+
+        case State::WAIT_MQTT:
+            state = State::SLEEP;
+            // if (mqtt::global_mqtt_client->is_connected()) {
+            //     ESP_LOGI(TAG, "MQTT connected");
+            //     state = State::RUN_ULP;
+            //     state_start = millis();
+            // } else if (millis() - state_start > 10000) {
+            //     ESP_LOGW(TAG, "Timeout waiting for MQTT");
+            //     state = State::FAIL;
+            // }
+            break;
+
+        case State::SLEEP:
+            ESP_LOGI(TAG, "All steps succeeded, goint to sleep");
+            enter_sleep();
+            break;
+
+        case State::FAIL:
+            ESP_LOGE(TAG, "Failsafe triggered, going to sleep");
+            enter_sleep();
+            break;
+    }
 }
 
 void ADCULPSensor::enter_sleep() {
