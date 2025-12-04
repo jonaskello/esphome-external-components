@@ -245,6 +245,8 @@ esp_err_t ADCULPSensor::init_ulp_program() {
         return r;
     }
 
+    esp_deep_sleep_disable_rom_logging(); // suppress boot messages
+
     ESP_LOGI(TAG, "First power on, init ULP completed, program size: %d", size);
 
     return ESP_OK;
