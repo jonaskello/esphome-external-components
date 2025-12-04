@@ -9,6 +9,7 @@
 #include "esp_sleep.h"
 #include "esphome/core/util.h"
 #include "ulp_adc.h"
+#include "soc/rtc_cntl_reg.h"
 #if USE_ESP32_VARIANT_ESP32
     #include "esp32/ulp.h"
 #elif USE_ESP32_VARIANT_ESP32S3
@@ -186,10 +187,17 @@ esp_err_t ADCULPSensor::init_ulp_program() {
 
     // Define ULP program
     const ulp_insn_t ulp_prog[] = {
+
+        // Do nothing while the cpu is awake
+        M_LABEL(10),
+            I_RD_REG(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP_S, 1),
+            I_ANDI(R0, R0, 1),
+            M_BL(10, 1),  // Go back to lebal 10 if RDY_FOR_WAKEUP=0
+
         // Use R3 as data pointer in the whole program
         I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
 
-        // Check ARM flag so we don't measure values when the CPU is awake
+        // Check ARM flag so we don't measure values multiple times per wake cycle
         I_LD(R0, R3, ARM_OFFSET),  // R0 = ARM
         M_BL(2, 1),                // if ARM < 1 it is 0 (it can be 1 or 0) → branch to label 2 (skip)
 
