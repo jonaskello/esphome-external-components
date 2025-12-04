@@ -192,7 +192,7 @@ esp_err_t ADCULPSensor::init_ulp_program() {
         M_LABEL(10),
             I_RD_REG(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP_S, 1),
             I_ANDI(R0, R0, 1),
-            M_BL(10, 1),  // Go back to lebal 10 if RDY_FOR_WAKEUP=0
+            M_BL(10, 1),  // Go back to label 10 if RDY_FOR_WAKEUP=0
 
         // Use R3 as data pointer in the whole program
         I_MOVI(R3, DATA_BASE_SLOT), // R3 = base data pointer
