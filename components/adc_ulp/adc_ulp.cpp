@@ -139,30 +139,39 @@ void ADCULPSensor::loop() {
 void ADCULPSensor::loop() {
     enum class State { WAIT_REMOTE, WAIT_MQTT, SLEEP, FAIL };
     static State state = State::WAIT_REMOTE;
-    static unsigned long state_start = 0;
+    static unsigned long state_start = millis();
+    static unsigned long last_log   = millis();
 
     switch (state) {
         case State::WAIT_REMOTE:
             if (remote_is_connected()) {
                 ESP_LOGI(TAG, "Remote connected");
-                state = State::WAIT_MQTT;
+                if (mqtt::global_mqtt_client->is_connected()) {
+                    ESP_LOGI(TAG, "Disconnecting MQTT before deep sleep...");
+                    mqtt::global_mqtt_client->disable();
+                    state = State::WAIT_MQTT;
+                }
+                else {
+                    state = State::SLEEP;
+                }
                 state_start = millis();
-            } else if (millis() - state_start > 80000) {
-                ESP_LOGW(TAG, "Timeout waiting for remote");
-                state = State::FAIL;
+                last_log   = millis();
+            } else {
+                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for remote... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
+                if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for remote"); state = State::FAIL; }
             }
             break;
 
         case State::WAIT_MQTT:
-            state = State::SLEEP;
-            // if (mqtt::global_mqtt_client->is_connected()) {
-            //     ESP_LOGI(TAG, "MQTT connected");
-            //     state = State::RUN_ULP;
-            //     state_start = millis();
-            // } else if (millis() - state_start > 10000) {
-            //     ESP_LOGW(TAG, "Timeout waiting for MQTT");
-            //     state = State::FAIL;
-            // }
+            if (!mqtt::global_mqtt_client->is_connected()) {
+                ESP_LOGI(TAG, "MQTT disconnected");
+                state = State::SLEEP;
+                state_start = millis();
+                last_log   = millis();
+            } else {
+                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for MQTT disconnect... %lu s", (millis() - state_start) / 1000); last_log = millis(); }
+                if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for MQTT disconnect"); state = State::FAIL; }
+            }
             break;
 
         case State::SLEEP:
