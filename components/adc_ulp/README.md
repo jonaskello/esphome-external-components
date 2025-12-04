@@ -1,3 +1,7 @@
+# adc_ulp
+
+This component uses the FSM ULP on ESP32 or ESP32-S3 to read ADC and wake the CPU when a threshold is reached. It works similar to the regular `adc` component but the ULP reads at `update_interval` and only wakes the CPU if `threshold` is reached, and only then is the value sent.
+
 # example configuration:
 
 ```yaml
