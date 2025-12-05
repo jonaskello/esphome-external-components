@@ -89,66 +89,8 @@ void ADCULPSensor::setup() {
     // ESP_LOGI(TAG, "DEBUG3 raw: 0x%08X (PC=%u, reg=%u, val=%d)", debug3, (debug3 >> 21) & 0x7FF, (debug3 >> 16) & 0x3, (int16_t)(debug3 & 0xFFFF));
 }
 
-void ADCULPSensor::loop() {
-    enum class State { WAIT_REMOTE, WAIT_MQTT_SEND, WAIT_MQTT_DISCONNECT, SLEEP, FAIL };
-    static State state = State::WAIT_REMOTE;
-    static unsigned long state_start = millis();
-    static unsigned long last_log   = millis();
-
-    switch (state) {
-        case State::WAIT_REMOTE:
-            if (remote_is_connected()) {
-                ESP_LOGI(TAG, "Remote connected");
-                state = State::WAIT_MQTT_SEND;
-                state_start = millis();
-                last_log   = millis();
-            } else {
-                if (millis() - last_log >= 1000) { ESP_LOGI(TAG, "Waiting for remote... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
-                if (millis() - state_start > 80000) { ESP_LOGW(TAG, "Timeout waiting for remote"); state = State::FAIL; }
-            }
-            break;
-
-        case State::WAIT_MQTT_SEND:
-            if (millis() - state_start >= 2000) {
-                ESP_LOGI(TAG, "MQTT send wait done");
-                if (mqtt::global_mqtt_client->is_connected()) {
-                    ESP_LOGI(TAG, "Disconnecting MQTT before deep sleep...");
-                    mqtt::global_mqtt_client->disable();
-                    state = State::WAIT_MQTT_DISCONNECT;
-                } else {
-                    state = State::SLEEP;
-                }
-                state_start = millis();
-                last_log   = millis();
-            } else {
-                if (millis() - last_log >= 500) { ESP_LOGI(TAG, "Waiting for remote send... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
-            }
-            break;
-            
-        case State::WAIT_MQTT_DISCONNECT:
-            if (millis() - state_start >= 2000) {
-                ESP_LOGI(TAG, "MQTT disconnect wait done");
-                state = State::SLEEP;
-                state_start = millis();
-                last_log   = millis();
-            } else {
-                if (millis() - last_log >= 500) { ESP_LOGI(TAG, "Waiting for MQTT disconnect... %.2f s", (millis() - state_start) / 1000.0f); last_log = millis(); }
-            }
-            break;
-
-        case State::SLEEP:
-            ESP_LOGI(TAG, "All steps succeeded, goint to sleep");
-            enter_sleep();
-            break;
-
-        case State::FAIL:
-            ESP_LOGE(TAG, "Failsafe triggered, going to sleep");
-            enter_sleep();
-            break;
-    }
-}
-
-void ADCULPSensor::enter_sleep() {
+// This will be called when the deep_sleep.enter action is run
+void ADCULPSensor::on_shutdown() {
     // Start ULP program
     esp_err_t r = ulp_run(0);
     if (r != ESP_OK) {
@@ -160,22 +102,12 @@ void ADCULPSensor::enter_sleep() {
     // Last log before sleep
     ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
 
-    // Tell esphome this was "successful" to not trigger safe mode
-    App.run_safe_shutdown_hooks();
-    // It's critical to teardown components cleanly for deep sleep to ensure
-    // Home Assistant sees a clean disconnect instead of marking the device unavailable
-    App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
-    App.run_powerdown_hooks();
-
     // Enable wakeup from ULP
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
     // Tell ULP to start making measurements
     RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
-    // Enter sleep
-    esp_deep_sleep_start();
-
 }
 
 void ADCULPSensor::dump_config() {

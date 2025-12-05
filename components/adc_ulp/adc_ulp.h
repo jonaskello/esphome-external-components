@@ -36,8 +36,10 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         /// This method is called once during device initialization.
         void setup() override;
 
-        /// Used to publish sensor value on wake. 
-        void loop() override;
+        // /// Used to publish sensor value on wake. 
+        // void loop() override;
+
+        void on_shutdown() override;
 
         float get_loop_priority() const override;
         float get_setup_priority() const override;
@@ -82,7 +84,6 @@ class ADCULPSensor : public sensor::Sensor, public Component, public voltage_sam
         uint32_t voltage_to_raw(float target_v);
         void update_raw_thresholds();
         bool output_raw_{false};
-        void enter_sleep();
         InternalGPIOPin *pin_;
         uint32_t update_interval_ms_{1000};  // default 1s
         float threshold_{2};  // Difference threshold for wake-up, volt or raw depending on output_raw_

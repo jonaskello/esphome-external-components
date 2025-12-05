@@ -31,6 +31,8 @@ wifi:
     gateway: 192.168.0.1
     subnet: 255.255.255.0
 
+deep_sleep:
+
 mqtt:
   broker: 192.168.0.22
   username: !secret mqtt_user
@@ -40,6 +42,14 @@ mqtt:
   # https://community.home-assistant.io/t/how-to-get-last-known-value-while-sensor-is-in-deep-sleep/119665/18
   birth_message:
   will_message:
+  on_connect: 
+    then:
+      - delay: 
+          1000ms
+      - mqtt.disable
+      - delay:
+          1000ms   
+      - deep_sleep.enter
 
 external_components:
   - source: github://jonaskello/esphome-external-components@main
@@ -49,7 +59,7 @@ sensor:
     pin: GPIO6
     threshold: 0.2
     update_interval: 100ms
-    name: "Moisture Sensor #3"
+    name: "Moisture"
     attenuation: 12db
     qos: 1
 ```
