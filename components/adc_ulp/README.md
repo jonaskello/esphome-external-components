@@ -2,6 +2,8 @@
 
 This component uses the FSM ULP on ESP32 or ESP32-S3 to read ADC and wake the CPU when a threshold is reached. It works similar to the regular `adc` component but the ULP reads at `update_interval` and only wakes the CPU if `threshold` is reached, and only then is the value sent.
 
+Note that this component does not put the CPU to sleep, it only starts the ULP program on shutdown which wakes the CPU up. You need to use the `deep_sleep` component with the action `deep_sleep.enter` to do put the CPU to sleep. If you are using MQTT then a good place to do this is after the `mqtt` component has connected and sent the values. See the example yaml below how to do that.
+
 # example configuration:
 
 ```yaml
