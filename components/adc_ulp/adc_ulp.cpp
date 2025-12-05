@@ -91,6 +91,8 @@ void ADCULPSensor::setup() {
 
 // This will be called when the deep_sleep.enter action is run
 void ADCULPSensor::on_shutdown() {
+    ESP_LOGI(TAG, "on_shutdown: Enabling ULP wakeup");
+
     // Start ULP program
     esp_err_t r = ulp_run(0);
     if (r != ESP_OK) {
@@ -99,15 +101,14 @@ void ADCULPSensor::on_shutdown() {
         return;
     }
 
-    // Last log before sleep
-    ESP_LOGI(TAG, "Entering deep sleep until next ULP wake...");
-
     // Enable wakeup from ULP
     esp_sleep_enable_ulp_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
     // Tell ULP to start making measurements
     RTC_SLOW_MEM[DATA_BASE_SLOT + ARM_OFFSET] = 1;
+
+    ESP_LOGI(TAG, "on_shutdown: ULP wakeup enabled");
 }
 
 void ADCULPSensor::dump_config() {
